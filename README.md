@@ -4,9 +4,9 @@ A playful "game-as-navigation" landing page that mixes a Pong-like paddle intera
 
 ## What's new in this iteration
 
-- Removed the max-width shell so the layout now breathes edge-to-edge, keeping the fixed header hovering freely above a brighter white page with a slow ambient gradient animation.
-- Wrapped the canvas and paddle in a softer glow, refined the liquid-glass styling, and added generous spacing plus subtle hover glints to the navigation buttons (now drifting independently and occasionally "dodging" the ball).
-- Tuned gameplay with a faster initial launch speed, randomized floaty nav boxes that flash before redirecting, and retained the inverted playfield with the paddle shielding the canvas top.
+- Pulled back every frame and border so the paddle, ball, and floating navigation boxes appear to hover freely over the white ambient background while the fixed header remains untouched.
+- Kept the liquid-glass treatment on the navigation buttons, widened their breathing room, and left the ambient gradient animation in place without surrounding containers.
+- Preserved the faster, inverted playfield with pulsing redirects and floating/dodging targets while simplifying the canvas render down to only the paddle and ball.
 
 ## 1) Stack summary
 

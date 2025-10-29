@@ -109,10 +109,6 @@ buildTargetsNav();
 
 resetBall();
 
-const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-gradient.addColorStop(0, 'rgba(59, 130, 246, 0.22)');
-gradient.addColorStop(1, 'rgba(14, 116, 144, 0.18)');
-
 let lastTime = 0;
 let navAnimationTime = 0;
 
@@ -170,35 +166,6 @@ function updatePaddleFromMouse() {
   paddle.x = clamp(paddle.x + diff * 0.18, 0, canvas.width - paddle.width);
 }
 
-function drawBackground() {
-  ctx.fillStyle = CONFIG.canvas.background;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
-
-function drawBaselineGuides() {
-  ctx.save();
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, canvas.height - 1);
-  ctx.lineTo(canvas.width, canvas.height - 1);
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
-  ctx.lineWidth = 1.5;
-  boxes.forEach((box) => {
-    ctx.beginPath();
-    ctx.moveTo(box.x, canvas.height - 18);
-    ctx.lineTo(box.x, canvas.height - 2);
-    ctx.stroke();
-  });
-  ctx.restore();
-}
-
 function drawRoundedRectPath(context, x, y, width, height, radius) {
   context.beginPath();
   context.moveTo(x + radius, y);
@@ -227,7 +194,7 @@ function drawPaddle() {
   gradientFill.addColorStop(1, 'rgba(15, 23, 42, 0.7)');
 
   ctx.fillStyle = gradientFill;
-  ctx.globalAlpha = 0.92;
+  ctx.globalAlpha = 0.9;
   ctx.fill();
 
   const outline = ctx.createLinearGradient(x, y, x, y + height);
@@ -238,26 +205,14 @@ function drawPaddle() {
   ctx.strokeStyle = outline;
   ctx.globalAlpha = 1;
   ctx.stroke();
-
-  drawRoundedRectPath(ctx, x, y, width, height, radius);
-  ctx.shadowColor = 'rgba(59, 130, 246, 0.45)';
-  ctx.shadowBlur = 24;
-  ctx.shadowOffsetY = 2;
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.14)';
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.fill();
-
   ctx.restore();
 }
 
 function drawBall() {
   ctx.beginPath();
   ctx.fillStyle = '#f1f5f9';
-  ctx.shadowColor = 'rgba(241, 245, 249, 0.45)';
-  ctx.shadowBlur = 8;
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
   ctx.fill();
-  ctx.shadowBlur = 0;
 }
 
 function animateTargets(dt) {
@@ -407,8 +362,7 @@ function update(dt) {
 }
 
 function render() {
-  drawBackground();
-  drawBaselineGuides();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawPaddle();
   drawBall();
 }
