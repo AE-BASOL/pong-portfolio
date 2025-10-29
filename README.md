@@ -4,8 +4,9 @@ A playful "game-as-navigation" landing page that mixes a Pong-like paddle intera
 
 ## What's new in this iteration
 
-- Re-centered the layout: the typewriter header now floats above the canvas, the navigation targets sit in a slate bar beneath it, and the overall page rests on a white backdrop with a lightweight ambient gradient animation.
-- Refined game physics: the ball now spawns in the middle of the playfield and launches downward with a random horizontal vector, while bottom-lane redirects continue to fire when the ball exits through a target column.
+- Locked the typewriter header to a fixed position above the play area so longer phrases never push the layout, and elevated the canvas on a white backdrop with the ambient gradient still drifting independently.
+- Rebuilt the navigation strip and paddle with a liquid-glass aesthetic, increased spacing between buttons, and renamed **Studio** to **Creative Portfolio** everywhere.
+- Flipped gameplay direction: the paddle now guards the top edge, the ball spawns in varied upper positions, and Enter fires it upward before it rebounds downward toward the glass targets.
 
 ## 1) Stack summary
 
@@ -40,8 +41,9 @@ npm install
 
 ## 5) Local testing checklist
 
-- Press **Enter**: the ball launches from the center with a downward vector and slight random left/right motion.
-- Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys; it remains inside the canvas just above the target bar.
+- Press **Enter**: the ball launches upward from a random upper-field start with a slight random left/right motion, then rebounds off the top paddle.
+- Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys; it stays anchored near the top edge while the ball dives toward the bottom targets.
+- Confirm the bottom navigation shows **Creative Portfolio** alongside the other sections and that redirects fire when the ball lands in each range.
 - Let the ball exit the bottom edge—if it crosses within a target's column, `window.location` changes to the configured URL.
 - Confirm the header's typewriter animation loops through all phrases above the canvas without clipping.
 - Toggle debug mode by editing `CONFIG.DEBUG` in `src/main.js`:
@@ -74,7 +76,7 @@ Any static host (Netlify, Vercel, Render Static, Cloudflare Pages) can deploy th
 ## 8) Config reference
 
 - **Typewriter phrases**: edit `CONFIG.phrases` in `src/main.js` (updates both the header copy and the animation cycle).
-- **Navigation labels & URLs**: edit `CONFIG.urls` in `src/main.js`. The nav bar and collision lanes read from the same entries.
+- **Navigation labels & URLs**: edit `CONFIG.urls` in `src/main.js`. The nav bar and collision lanes read from the same entries (including **Creative Portfolio**).
 - **Canvas tuning**: adjust `CONFIG.canvas` values for paddle size/offset, speeds, and ball radius/background color.
 
 ## 9) Known limitations and TODO

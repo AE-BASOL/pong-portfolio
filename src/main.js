@@ -8,7 +8,7 @@ const CONFIG = {
   urls: {
     About: 'https://example.com/about',
     Brain: 'https://example.com/brain',
-    Studio: 'https://example.com/studio',
+    'Creative Portfolio': 'https://example.com/studio',
     Research: 'https://example.com/research',
     Work: 'https://example.com/work'
   },
@@ -42,7 +42,7 @@ const paddle = {
   width: paddleWidth,
   height: paddleHeight,
   x: canvas.width / 2 - paddleWidth / 2,
-  y: canvas.height - paddleOffset,
+  y: paddleOffset,
   targetX: null
 };
 
@@ -71,21 +71,8 @@ const boxes = targetEntries.map(([label, url], index, arr) => ({
 
 function buildTargetsNav() {
   navElement.innerHTML = '';
-  const openBracket = document.createElement('span');
-  openBracket.className = 'targets-bracket';
-  openBracket.textContent = '[';
-  openBracket.setAttribute('aria-hidden', 'true');
-  navElement.appendChild(openBracket);
 
-  targetEntries.forEach(([label, url], index) => {
-    if (index > 0) {
-      const separator = document.createElement('span');
-      separator.className = 'targets-separator';
-      separator.textContent = '|';
-      separator.setAttribute('aria-hidden', 'true');
-      navElement.appendChild(separator);
-    }
-
+  targetEntries.forEach(([label, url]) => {
     const link = document.createElement('a');
     link.className = 'target-link';
     link.href = url;
@@ -98,15 +85,11 @@ function buildTargetsNav() {
     });
     navElement.appendChild(link);
   });
-
-  const closeBracket = document.createElement('span');
-  closeBracket.className = 'targets-bracket';
-  closeBracket.textContent = ']';
-  closeBracket.setAttribute('aria-hidden', 'true');
-  navElement.appendChild(closeBracket);
 }
 
 buildTargetsNav();
+
+resetBall();
 
 const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
 gradient.addColorStop(0, 'rgba(59, 130, 246, 0.22)');
@@ -118,12 +101,23 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function randomBetween(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
 function resetBall() {
   ball.launched = false;
-  ball.x = canvas.width / 2;
-  ball.y = canvas.height / 2;
   ball.dx = 0;
   ball.dy = 0;
+
+  const horizontalPadding = 24;
+  const minX = ball.radius + horizontalPadding;
+  const maxX = canvas.width - ball.radius - horizontalPadding;
+  ball.x = randomBetween(minX, maxX);
+
+  const minY = paddle.y + paddle.height + ball.radius + 32;
+  const maxY = canvas.height * 0.55;
+  ball.y = randomBetween(minY, maxY);
 }
 
 function launchBall() {
@@ -138,7 +132,7 @@ function launchBall() {
   }
 
   ball.dx = vx;
-  ball.dy = Math.abs(ball.speed);
+  ball.dy = -Math.abs(ball.speed);
 }
 
 function updatePaddleFromKeyboard() {
@@ -186,12 +180,54 @@ function drawBaselineGuides() {
   ctx.restore();
 }
 
+function drawRoundedRectPath(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
 function drawPaddle() {
-  ctx.fillStyle = '#38bdf8';
-  ctx.shadowColor = 'rgba(56, 189, 248, 0.35)';
-  ctx.shadowBlur = 10;
-  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
-  ctx.shadowBlur = 0;
+  const radius = 18;
+  const x = paddle.x;
+  const y = paddle.y;
+  const { width, height } = paddle;
+
+  ctx.save();
+  drawRoundedRectPath(ctx, x, y, width, height, radius);
+
+  const gradientFill = ctx.createLinearGradient(x, y, x, y + height);
+  gradientFill.addColorStop(0, 'rgba(248, 250, 252, 0.45)');
+  gradientFill.addColorStop(1, 'rgba(15, 23, 42, 0.7)');
+
+  ctx.fillStyle = gradientFill;
+  ctx.globalAlpha = 0.92;
+  ctx.fill();
+
+  const outline = ctx.createLinearGradient(x, y, x, y + height);
+  outline.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+  outline.addColorStop(1, 'rgba(59, 130, 246, 0.35)');
+
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = outline;
+  ctx.globalAlpha = 1;
+  ctx.stroke();
+
+  drawRoundedRectPath(ctx, x, y, width, height, radius);
+  ctx.shadowColor = 'rgba(15, 23, 42, 0.3)';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.1)';
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function drawBall() {
@@ -206,19 +242,19 @@ function drawBall() {
 
 function handlePaddleCollision() {
   if (
-    ball.y + ball.radius >= paddle.y &&
     ball.y - ball.radius <= paddle.y + paddle.height &&
+    ball.y + ball.radius >= paddle.y &&
     ball.x >= paddle.x &&
     ball.x <= paddle.x + paddle.width &&
-    ball.dy > 0
+    ball.dy < 0
   ) {
     const relativeIntersect = ball.x - (paddle.x + paddle.width / 2);
     const normalized = clamp(relativeIntersect / (paddle.width / 2), -1, 1);
     const bounceAngle = normalized * (Math.PI / 3);
     const speed = Math.hypot(ball.dx, ball.dy) || ball.speed;
     ball.dx = speed * Math.sin(bounceAngle);
-    ball.dy = -Math.abs(speed * Math.cos(bounceAngle));
-    ball.y = paddle.y - ball.radius - 1;
+    ball.dy = Math.abs(speed * Math.cos(bounceAngle));
+    ball.y = paddle.y + paddle.height + ball.radius + 1;
   }
 }
 
@@ -233,7 +269,7 @@ function handleWallCollisions() {
   }
   if (ball.y - ball.radius <= 0) {
     ball.y = ball.radius;
-    ball.dy *= -1;
+    ball.dy = Math.abs(ball.dy || ball.speed);
   }
 }
 
