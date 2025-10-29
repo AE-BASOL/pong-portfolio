@@ -4,9 +4,9 @@ A playful "game-as-navigation" landing page that mixes a Pong-like paddle intera
 
 ## What's new in this iteration
 
-- Locked the typewriter header to a fixed position above the play area so longer phrases never push the layout, and elevated the canvas on a white backdrop with the ambient gradient still drifting independently.
-- Rebuilt the navigation strip and paddle with a liquid-glass aesthetic, increased spacing between buttons, and renamed **Studio** to **Creative Portfolio** everywhere.
-- Flipped gameplay direction: the paddle now guards the top edge, the ball spawns in varied upper positions, and Enter fires it upward before it rebounds downward toward the glass targets.
+- Removed the max-width shell so the layout now breathes edge-to-edge, keeping the fixed header hovering freely above a brighter white page with a slow ambient gradient animation.
+- Wrapped the canvas and paddle in a softer glow, refined the liquid-glass styling, and added generous spacing plus subtle hover glints to the navigation buttons (now drifting independently and occasionally "dodging" the ball).
+- Tuned gameplay with a faster initial launch speed, randomized floaty nav boxes that flash before redirecting, and retained the inverted playfield with the paddle shielding the canvas top.
 
 ## 1) Stack summary
 
@@ -44,7 +44,7 @@ npm install
 - Press **Enter**: the ball launches upward from a random upper-field start with a slight random left/right motion, then rebounds off the top paddle.
 - Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys; it stays anchored near the top edge while the ball dives toward the bottom targets.
 - Confirm the bottom navigation shows **Creative Portfolio** alongside the other sections and that redirects fire when the ball lands in each range.
-- Let the ball exit the bottom edge—if it crosses within a target's column, `window.location` changes to the configured URL.
+- Let the ball exit the bottom edge—if it crosses within a target's column, the button pulses briefly and then `window.location` changes to the configured URL.
 - Confirm the header's typewriter animation loops through all phrases above the canvas without clipping.
 - Toggle debug mode by editing `CONFIG.DEBUG` in `src/main.js`:
   - `true`: logs collisions, keeps the ball in-bounds, and suppresses redirects (including clicks on the target nav).

@@ -24,7 +24,7 @@ const CONFIG = {
     paddleOffset: 70,
     paddleSpeed: 8,
     ballRadius: 11,
-    ballSpeed: 4.6
+    ballSpeed: 5.6
   }
 };
 
@@ -66,13 +66,26 @@ const boxes = targetEntries.map(([label, url], index, arr) => ({
   label,
   url,
   x: 0,
-  width: canvas.width / arr.length
+  width: canvas.width / arr.length,
+  element: null,
+  float: {
+    amplitudeX: randomBetween(4, 9),
+    amplitudeY: randomBetween(2, 6) * (Math.random() > 0.5 ? 1 : -1),
+    speedX: randomBetween(0.0008, 0.0016),
+    speedY: randomBetween(0.0006, 0.0013),
+    phaseX: Math.random() * Math.PI * 2,
+    phaseY: Math.random() * Math.PI * 2
+  },
+  highlightTimeout: null,
+  redirectTimeout: null,
+  dodgeTimeout: null,
+  dodging: false
 }));
 
 function buildTargetsNav() {
   navElement.innerHTML = '';
 
-  targetEntries.forEach(([label, url]) => {
+  targetEntries.forEach(([label, url], index) => {
     const link = document.createElement('a');
     link.className = 'target-link';
     link.href = url;
@@ -84,6 +97,11 @@ function buildTargetsNav() {
       }
     });
     navElement.appendChild(link);
+    boxes[index].element = link;
+    link.style.setProperty('--float-x', '0px');
+    link.style.setProperty('--float-y', '0px');
+    link.style.setProperty('--dodge-x', '0px');
+    link.style.setProperty('--dodge-y', '0px');
   });
 }
 
@@ -96,6 +114,7 @@ gradient.addColorStop(0, 'rgba(59, 130, 246, 0.22)');
 gradient.addColorStop(1, 'rgba(14, 116, 144, 0.18)');
 
 let lastTime = 0;
+let navAnimationTime = 0;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -124,15 +143,15 @@ function launchBall() {
   if (ball.launched) return;
   ball.launched = true;
 
-  const maxHorizontal = ball.speed * 0.75;
-  const minHorizontal = maxHorizontal * 0.2;
+  const maxHorizontal = ball.speed * 0.95;
+  const minHorizontal = maxHorizontal * 0.25;
   let vx = (Math.random() * 2 - 1) * maxHorizontal;
   while (Math.abs(vx) < minHorizontal) {
     vx = (Math.random() * 2 - 1) * maxHorizontal;
   }
 
   ball.dx = vx;
-  ball.dy = -Math.abs(ball.speed);
+  ball.dy = -Math.abs(ball.speed * 1.08);
 }
 
 function updatePaddleFromKeyboard() {
@@ -221,9 +240,10 @@ function drawPaddle() {
   ctx.stroke();
 
   drawRoundedRectPath(ctx, x, y, width, height, radius);
-  ctx.shadowColor = 'rgba(15, 23, 42, 0.3)';
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.1)';
+  ctx.shadowColor = 'rgba(59, 130, 246, 0.45)';
+  ctx.shadowBlur = 24;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.14)';
   ctx.globalCompositeOperation = 'lighter';
   ctx.fill();
 
@@ -238,6 +258,68 @@ function drawBall() {
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
+}
+
+function animateTargets(dt) {
+  navAnimationTime += dt;
+  boxes.forEach((box) => {
+    if (!box.element) return;
+    const { float } = box;
+    const offsetX = Math.sin(float.phaseX + navAnimationTime * float.speedX) * float.amplitudeX;
+    const offsetY = Math.cos(float.phaseY + navAnimationTime * float.speedY) * float.amplitudeY;
+    box.element.style.setProperty('--float-x', `${offsetX.toFixed(2)}px`);
+    box.element.style.setProperty('--float-y', `${offsetY.toFixed(2)}px`);
+  });
+}
+
+function triggerTargetHit(box) {
+  if (!box.element) return;
+  box.element.classList.add('target-link--hit');
+  if (box.highlightTimeout) {
+    clearTimeout(box.highlightTimeout);
+  }
+  box.highlightTimeout = setTimeout(() => {
+    if (box.element) {
+      box.element.classList.remove('target-link--hit');
+    }
+    box.highlightTimeout = null;
+  }, 460);
+}
+
+function triggerTargetDodge(box) {
+  if (!box.element || box.dodging) return;
+  box.dodging = true;
+  const offsetX = (Math.random() > 0.5 ? 1 : -1) * randomBetween(4, 9);
+  const offsetY = randomBetween(-3, 3);
+  box.element.classList.add('target-link--dodge');
+  box.element.style.setProperty('--dodge-x', `${offsetX.toFixed(2)}px`);
+  box.element.style.setProperty('--dodge-y', `${offsetY.toFixed(2)}px`);
+  if (box.dodgeTimeout) {
+    clearTimeout(box.dodgeTimeout);
+  }
+  box.dodgeTimeout = setTimeout(() => {
+    if (box.element) {
+      box.element.classList.remove('target-link--dodge');
+      box.element.style.setProperty('--dodge-x', '0px');
+      box.element.style.setProperty('--dodge-y', '0px');
+    }
+    box.dodging = false;
+    box.dodgeTimeout = null;
+  }, 280);
+}
+
+function maybeDodgeTargets() {
+  if (!ball.launched || ball.dy <= 0 || ball.y < canvas.height - 140) {
+    return;
+  }
+
+  const approaching = boxes.find(
+    (box) => ball.x >= box.x - 20 && ball.x <= box.x + box.width + 20
+  );
+
+  if (approaching && Math.random() < 0.04) {
+    triggerTargetDodge(approaching);
+  }
 }
 
 function handlePaddleCollision() {
@@ -280,12 +362,21 @@ function handleTargetCollision() {
 
   const target = boxes.find((box) => ball.x >= box.x && ball.x < box.x + box.width);
   if (target) {
+    triggerTargetHit(target);
     if (CONFIG.DEBUG) {
       console.log('Target collision:', target.label);
       ball.dy = -Math.abs(ball.dy || ball.speed);
       ball.y = canvas.height - ball.radius - 2;
     } else {
-      window.location.href = target.url;
+      ball.launched = false;
+      ball.dx = 0;
+      ball.dy = 0;
+      if (target.redirectTimeout) {
+        clearTimeout(target.redirectTimeout);
+      }
+      target.redirectTimeout = setTimeout(() => {
+        window.location.href = target.url;
+      }, 240);
     }
   } else {
     resetBall();
@@ -307,6 +398,7 @@ function update(dt) {
 
   handleWallCollisions();
   handlePaddleCollision();
+  maybeDodgeTargets();
   handleTargetCollision();
 
   if (ball.y - ball.radius > canvas.height + 30) {
@@ -324,6 +416,7 @@ function render() {
 function loop(timestamp = 0) {
   const dt = timestamp - lastTime;
   lastTime = timestamp;
+  animateTargets(dt || 16.67);
   update(dt);
   render();
   requestAnimationFrame(loop);
