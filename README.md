@@ -2,6 +2,11 @@
 
 A playful "game-as-navigation" landing page that mixes a Pong-like paddle interaction, collision-triggered navigation, and a looping typewriter headline.
 
+## What's new in this iteration
+
+- Re-centered the layout: the typewriter header now floats above the canvas, the navigation targets sit in a slate bar beneath it, and the overall page rests on a white backdrop with a lightweight ambient gradient animation.
+- Refined game physics: the ball now spawns in the middle of the playfield and launches downward with a random horizontal vector, while bottom-lane redirects continue to fire when the ball exits through a target column.
+
 ## 1) Stack summary
 
 | Tool | Purpose | Version |
@@ -30,19 +35,17 @@ npm install
 2. Configure the Node interpreter: **File → Settings → Languages & Frameworks → Node.js** and point it to the Node.js LTS installation.
 3. To run scripts, use the **npm** tool window (View → Tool Windows → npm) or the integrated **Terminal**.
 4. Start the development server with `npm run dev`. WebStorm will open a browser preview; otherwise, copy the URL (default http://localhost:5173) into your browser.
-5. To debug, create a JavaScript Debug configuration (**Run → Edit Configurations → + → JavaScript Debug**) targeting the dev server URL, enable "Break on exceptions," and start debugging.
-6. View console logs in the browser DevTools console (F12) or via WebStorm's Debug Console.
-
-_If you prefer vanilla hosting without the dev server, right-click `index.html` → **Open in Browser** or enable WebStorm's Live Edit._
+5. Prefer a static preview instead? Right-click `index.html` → **Open in Browser** or enable WebStorm's Live Edit feature.
+6. To debug, create a JavaScript Debug configuration (**Run → Edit Configurations → + → JavaScript Debug**) targeting the dev server URL, enable "Break on exceptions," and start debugging. View console logs in the browser DevTools console (F12) or via WebStorm's Debug Console.
 
 ## 5) Local testing checklist
 
-- Press **Enter** to launch the ball from the paddle.
-- Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys.
-- Let the ball hit a bottom navigation box to trigger `window.location` with the configured URL.
-- Confirm the header's typewriter animation loops through all phrases.
-- Toggle the debug mode by editing `CONFIG.DEBUG` in `src/main.js`:
-  - `true`: logs collision events and **disables redirects**.
+- Press **Enter**: the ball launches from the center with a downward vector and slight random left/right motion.
+- Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys; it remains inside the canvas just above the target bar.
+- Let the ball exit the bottom edge—if it crosses within a target's column, `window.location` changes to the configured URL.
+- Confirm the header's typewriter animation loops through all phrases above the canvas without clipping.
+- Toggle debug mode by editing `CONFIG.DEBUG` in `src/main.js`:
+  - `true`: logs collisions, keeps the ball in-bounds, and suppresses redirects (including clicks on the target nav).
   - `false`: normal navigation behavior.
 
 ## 6) Build and production preview
@@ -70,9 +73,9 @@ Any static host (Netlify, Vercel, Render Static, Cloudflare Pages) can deploy th
 
 ## 8) Config reference
 
-- **Typewriter phrases**: edit `CONFIG.phrases` in `src/main.js`.
-- **Navigation labels & URLs**: edit `CONFIG.urls` in `src/main.js`.
-- **Canvas & speed tuning**: update `CONFIG.canvas` values (size constants, speeds, offsets).
+- **Typewriter phrases**: edit `CONFIG.phrases` in `src/main.js` (updates both the header copy and the animation cycle).
+- **Navigation labels & URLs**: edit `CONFIG.urls` in `src/main.js`. The nav bar and collision lanes read from the same entries.
+- **Canvas tuning**: adjust `CONFIG.canvas` values for paddle size/offset, speeds, and ball radius/background color.
 
 ## 9) Known limitations and TODO
 

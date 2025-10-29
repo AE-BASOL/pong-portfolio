@@ -18,24 +18,24 @@ const CONFIG = {
     'Welcome to my interactive portfolio.'
   ],
   canvas: {
-    background: '#04152c',
+    background: '#0b1729',
     paddleWidth: 140,
     paddleHeight: 16,
-    paddleOffset: 90,
+    paddleOffset: 70,
     paddleSpeed: 8,
     ballRadius: 11,
-    ballSpeed: 4.6,
-    boxHeight: 64
+    ballSpeed: 4.6
   }
 };
 
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+const navElement = document.getElementById('targets');
 
 const typewriterElement = document.getElementById('typewriter');
 createTypewriter(typewriterElement, CONFIG.phrases);
 
-const { paddleWidth, paddleHeight, paddleOffset, paddleSpeed, ballRadius, ballSpeed, boxHeight } =
+const { paddleWidth, paddleHeight, paddleOffset, paddleSpeed, ballRadius, ballSpeed } =
   CONFIG.canvas;
 
 const paddle = {
@@ -48,7 +48,7 @@ const paddle = {
 
 const ball = {
   x: canvas.width / 2,
-  y: paddle.y - ballRadius,
+  y: canvas.height / 2,
   radius: ballRadius,
   dx: 0,
   dy: 0,
@@ -61,21 +61,56 @@ const keyState = {
   right: false
 };
 
-const boxes = Object.entries(CONFIG.urls).map(([label, url], index, arr) => {
-  const width = canvas.width / arr.length;
-  return {
-    label,
-    url,
-    x: index * width,
-    y: canvas.height - boxHeight,
-    width,
-    height: boxHeight
-  };
-});
+const targetEntries = Object.entries(CONFIG.urls);
+const boxes = targetEntries.map(([label, url], index, arr) => ({
+  label,
+  url,
+  x: 0,
+  width: canvas.width / arr.length
+}));
+
+function buildTargetsNav() {
+  navElement.innerHTML = '';
+  const openBracket = document.createElement('span');
+  openBracket.className = 'targets-bracket';
+  openBracket.textContent = '[';
+  openBracket.setAttribute('aria-hidden', 'true');
+  navElement.appendChild(openBracket);
+
+  targetEntries.forEach(([label, url], index) => {
+    if (index > 0) {
+      const separator = document.createElement('span');
+      separator.className = 'targets-separator';
+      separator.textContent = '|';
+      separator.setAttribute('aria-hidden', 'true');
+      navElement.appendChild(separator);
+    }
+
+    const link = document.createElement('a');
+    link.className = 'target-link';
+    link.href = url;
+    link.textContent = label;
+    link.addEventListener('click', (event) => {
+      if (CONFIG.DEBUG) {
+        event.preventDefault();
+        console.log('Navigation suppressed (DEBUG):', label);
+      }
+    });
+    navElement.appendChild(link);
+  });
+
+  const closeBracket = document.createElement('span');
+  closeBracket.className = 'targets-bracket';
+  closeBracket.textContent = ']';
+  closeBracket.setAttribute('aria-hidden', 'true');
+  navElement.appendChild(closeBracket);
+}
+
+buildTargetsNav();
 
 const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-gradient.addColorStop(0, 'rgba(56, 189, 248, 0.08)');
-gradient.addColorStop(1, 'rgba(244, 114, 182, 0.08)');
+gradient.addColorStop(0, 'rgba(59, 130, 246, 0.22)');
+gradient.addColorStop(1, 'rgba(14, 116, 144, 0.18)');
 
 let lastTime = 0;
 
@@ -85,8 +120,8 @@ function clamp(value, min, max) {
 
 function resetBall() {
   ball.launched = false;
-  ball.x = paddle.x + paddle.width / 2;
-  ball.y = paddle.y - ball.radius;
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
   ball.dx = 0;
   ball.dy = 0;
 }
@@ -94,9 +129,16 @@ function resetBall() {
 function launchBall() {
   if (ball.launched) return;
   ball.launched = true;
-  const direction = Math.random() > 0.5 ? 1 : -1;
-  ball.dx = ball.speed * 0.8 * direction;
-  ball.dy = -ball.speed;
+
+  const maxHorizontal = ball.speed * 0.75;
+  const minHorizontal = maxHorizontal * 0.2;
+  let vx = (Math.random() * 2 - 1) * maxHorizontal;
+  while (Math.abs(vx) < minHorizontal) {
+    vx = (Math.random() * 2 - 1) * maxHorizontal;
+  }
+
+  ball.dx = vx;
+  ball.dy = Math.abs(ball.speed);
 }
 
 function updatePaddleFromKeyboard() {
@@ -120,16 +162,34 @@ function drawBackground() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
 
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
+function drawBaselineGuides() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 1);
+  ctx.lineTo(canvas.width, canvas.height - 1);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+  boxes.forEach((box) => {
+    ctx.beginPath();
+    ctx.moveTo(box.x, canvas.height - 18);
+    ctx.lineTo(box.x, canvas.height - 2);
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 function drawPaddle() {
   ctx.fillStyle = '#38bdf8';
-  ctx.shadowColor = 'rgba(56, 189, 248, 0.45)';
-  ctx.shadowBlur = 18;
+  ctx.shadowColor = 'rgba(56, 189, 248, 0.35)';
+  ctx.shadowBlur = 10;
   ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
   ctx.shadowBlur = 0;
 }
@@ -137,48 +197,32 @@ function drawPaddle() {
 function drawBall() {
   ctx.beginPath();
   ctx.fillStyle = '#f1f5f9';
-  ctx.shadowColor = 'rgba(241, 245, 249, 0.6)';
-  ctx.shadowBlur = 12;
+  ctx.shadowColor = 'rgba(241, 245, 249, 0.45)';
+  ctx.shadowBlur = 8;
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
 }
 
-function drawBoxes() {
-  ctx.font = '16px "IBM Plex Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  boxes.forEach((box) => {
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    const radius = 12;
-    roundedRect(ctx, box.x + 12, box.y + 10, box.width - 24, box.height - 20, radius);
-    ctx.fill();
-    ctx.stroke();
-    ctx.closePath();
-
-    ctx.fillStyle = '#e2e8f0';
-    ctx.fillText(box.label, box.x + box.width / 2, box.y + box.height / 2);
-  });
+function handlePaddleCollision() {
+  if (
+    ball.y + ball.radius >= paddle.y &&
+    ball.y - ball.radius <= paddle.y + paddle.height &&
+    ball.x >= paddle.x &&
+    ball.x <= paddle.x + paddle.width &&
+    ball.dy > 0
+  ) {
+    const relativeIntersect = ball.x - (paddle.x + paddle.width / 2);
+    const normalized = clamp(relativeIntersect / (paddle.width / 2), -1, 1);
+    const bounceAngle = normalized * (Math.PI / 3);
+    const speed = Math.hypot(ball.dx, ball.dy) || ball.speed;
+    ball.dx = speed * Math.sin(bounceAngle);
+    ball.dy = -Math.abs(speed * Math.cos(bounceAngle));
+    ball.y = paddle.y - ball.radius - 1;
+  }
 }
 
-function roundedRect(ctx, x, y, width, height, radius) {
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-}
-
-function handleCollisions() {
-  // Side walls
+function handleWallCollisions() {
   if (ball.x + ball.radius >= canvas.width) {
     ball.x = canvas.width - ball.radius;
     ball.dx *= -1;
@@ -187,54 +231,29 @@ function handleCollisions() {
     ball.x = ball.radius;
     ball.dx *= -1;
   }
-
-  // Ceiling
   if (ball.y - ball.radius <= 0) {
     ball.y = ball.radius;
     ball.dy *= -1;
   }
-
-  // Paddle
-  if (
-    ball.y + ball.radius >= paddle.y &&
-    ball.y + ball.radius <= paddle.y + paddle.height + Math.abs(ball.dy) &&
-    ball.x >= paddle.x &&
-    ball.x <= paddle.x + paddle.width &&
-    ball.dy > 0
-  ) {
-    const relativeIntersect = ball.x - (paddle.x + paddle.width / 2);
-    const normalized = relativeIntersect / (paddle.width / 2);
-    const bounceAngle = normalized * (Math.PI / 3);
-    ball.dx = ball.speed * Math.sin(bounceAngle);
-    ball.dy = -Math.abs(ball.speed * Math.cos(bounceAngle));
-  }
-
-  // Boxes
-  boxes.forEach((box) => {
-    if (intersectsCircleRect(ball, box)) {
-      if (CONFIG.DEBUG) {
-        console.log('Box collision:', box.label);
-      }
-      ball.dy = -Math.abs(ball.dy || ball.speed);
-      ball.y = box.y - ball.radius - 2;
-      if (!CONFIG.DEBUG) {
-        window.location.href = box.url;
-      }
-    }
-  });
-
-  // Floor fail-safe
-  if (ball.y - ball.radius > canvas.height + 30) {
-    resetBall();
-  }
 }
 
-function intersectsCircleRect(circle, rect) {
-  const closestX = clamp(circle.x, rect.x, rect.x + rect.width);
-  const closestY = clamp(circle.y, rect.y, rect.y + rect.height);
-  const dx = circle.x - closestX;
-  const dy = circle.y - closestY;
-  return dx * dx + dy * dy <= circle.radius * circle.radius;
+function handleTargetCollision() {
+  if (ball.y - ball.radius < canvas.height) {
+    return;
+  }
+
+  const target = boxes.find((box) => ball.x >= box.x && ball.x < box.x + box.width);
+  if (target) {
+    if (CONFIG.DEBUG) {
+      console.log('Target collision:', target.label);
+      ball.dy = -Math.abs(ball.dy || ball.speed);
+      ball.y = canvas.height - ball.radius - 2;
+    } else {
+      window.location.href = target.url;
+    }
+  } else {
+    resetBall();
+  }
 }
 
 function update(dt) {
@@ -242,20 +261,26 @@ function update(dt) {
   updatePaddleFromMouse();
 
   if (!ball.launched) {
-    ball.x = paddle.x + paddle.width / 2;
-    ball.y = paddle.y - ball.radius;
-  } else {
-    const delta = dt || 16.67;
-    const scale = delta / 16.67;
-    ball.x += ball.dx * scale;
-    ball.y += ball.dy * scale;
-    handleCollisions();
+    return;
+  }
+
+  const delta = dt || 16.67;
+  const scale = delta / 16.67;
+  ball.x += ball.dx * scale;
+  ball.y += ball.dy * scale;
+
+  handleWallCollisions();
+  handlePaddleCollision();
+  handleTargetCollision();
+
+  if (ball.y - ball.radius > canvas.height + 30) {
+    resetBall();
   }
 }
 
 function render() {
   drawBackground();
-  drawBoxes();
+  drawBaselineGuides();
   drawPaddle();
   drawBall();
 }
@@ -278,7 +303,6 @@ window.addEventListener('keydown', (event) => {
   } else if (event.code === 'Enter') {
     launchBall();
   } else if (event.code === 'Space') {
-    // developer shortcut to reset the ball
     resetBall();
   }
 });
@@ -302,14 +326,14 @@ canvas.addEventListener('mouseleave', () => {
   paddle.targetX = null;
 });
 
-window.addEventListener('resize', () => {
-  // Keep the canvas responsive by scaling via CSS. The drawing dimensions stay fixed.
-  // We still update the bounding boxes for pointer hit testing.
-  boxes.forEach((box, index, arr) => {
-    const width = canvas.width / arr.length;
+function updateBoxLayout() {
+  boxes.forEach((box, index) => {
+    const width = canvas.width / boxes.length;
     box.x = index * width;
-    box.y = canvas.height - boxHeight;
     box.width = width;
-    box.height = boxHeight;
   });
-});
+}
+
+updateBoxLayout();
+
+window.addEventListener('resize', updateBoxLayout);

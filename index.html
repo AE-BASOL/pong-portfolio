@@ -7,16 +7,19 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main class="app">
-      <header class="app__header">
-        <h1 id="typewriter" class="typewriter" aria-live="polite"></h1>
-      </header>
-      <section class="app__canvas">
-        <canvas id="gameCanvas" width="720" height="420" aria-label="Pong navigation game"></canvas>
-        <p class="app__hint">
-          Move with mouse or ←→. Press Enter to launch the ball.
-        </p>
+    <div class="ambient"></div>
+    <main class="layout">
+      <header id="typewriter" class="typewriter" aria-live="polite"></header>
+      <section id="game-wrap">
+        <canvas
+          id="game"
+          width="720"
+          height="420"
+          aria-label="Pong navigation game"
+        ></canvas>
+        <p class="hint">Move with mouse or ←→. Press Enter to launch the ball.</p>
       </section>
+      <nav id="targets" aria-label="Portfolio sections"></nav>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>
