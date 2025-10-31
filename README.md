@@ -1,91 +1,70 @@
-# Pong Portfolio
+# Pong Portfolio — Dark Mode Edition
 
-A playful "game-as-navigation" landing page that mixes a Pong-like paddle interaction, collision-triggered navigation, and a looping typewriter headline.
+A playful Pong-inspired navigation surface that now lives inside a moody, animated nightscape. The paddled ball still drives navigation, but every section button embraces its own visual identity while the header stays perfectly composed across screen sizes.
 
-## What's new in this iteration
+## Design & animation layers
 
-- Pulled back every frame and border so the paddle, ball, and floating navigation boxes appear to hover freely over the white ambient background while the fixed header remains untouched.
-- Kept the liquid-glass treatment on the navigation buttons, widened their breathing room, and left the ambient gradient animation in place without surrounding containers.
-- Preserved the faster, inverted playfield with pulsing redirects and floating/dodging targets while simplifying the canvas render down to only the paddle and ball.
+- **Dark abstract environment**: layered gradient backdrops (`.ambient::before`, `.ambient::after` in `src/style.css`) drift slowly via CSS keyframes to create a low-contrast nebula behind the action.
+- **Themed navigation targets**: each anchor gets a dedicated class in `src/main.js` and bespoke styling in `src/style.css`:
+  - `target-link--about` → frosted liquid glass with blur and soft interior sheen.
+  - `target-link--brain` → pastel lo-fi gradient with a repeating texture overlay.
+  - `target-link--creative` → radiant orb with pulsing glow animations (`@keyframes orb-pulse` / `orb-ambient`).
+  - `target-link--research` → brushed-metal gradient and crisp highlights.
+  - `target-link--work` → terminal-inspired slab with monospaced copy and a blinking cursor on hover.
+- **Responsive typewriter headline**: `src/typewriter.js` measures the longest phrase, locks the header width, and scales the font size (never wraps) while `#typewriter::after` keeps the blinking caret alive.
+- **Glowing gameplay elements**: the paddle uses a time-based rainbow gradient with collision-triggered glow boosts, and the ball renders with a persistent halo (`drawPaddle` / `drawBall` in `src/main.js`).
 
-## 1) Stack summary
+## Run locally on Windows 11 with WebStorm
 
-| Tool | Purpose | Version |
-| --- | --- | --- |
-| [Vite](https://vitejs.dev/) | Dev server & bundler | 5.2.0 |
-| Vanilla HTML/CSS/JS | UI & game logic | ECMAScript modules |
-| [Prettier](https://prettier.io/) | Formatting | 3.2.5 |
+1. **Install prerequisites**
+   - [Node.js LTS](https://nodejs.org/en/download) (Windows Installer).
+   - [Git for Windows](https://git-scm.com/download/win).
+2. **Clone & install**
+   ```bash
+   git clone https://github.com/your-user/pong-portfolio.git
+   cd pong-portfolio
+   npm install
+   ```
+3. **Open in WebStorm**
+   - Launch WebStorm → **File → Open…** and select the project folder.
+   - Ensure WebStorm uses your Node LTS interpreter (**File → Settings → Languages & Frameworks → Node.js**).
+4. **Start the dev server**
+   - In the **npm** tool window or the integrated terminal, run `npm run dev`.
+   - WebStorm’s preview or your browser should open `http://localhost:5173` automatically; otherwise, copy the URL manually.
+5. **Debug / iterate**
+   - Use WebStorm’s JavaScript Debug configuration pointing to the dev URL for breakpoints.
+   - Inspect console output in DevTools (F12) or WebStorm’s Debug Console.
 
-## 2) Prerequisites (Windows 11)
+## Disable the ambient background animation
 
-1. Install Node.js LTS from https://nodejs.org/en/download (choose the Windows Installer).
-2. Install Git for Windows from https://git-scm.com/download/win.
-3. Optional: install Prettier globally (`npm install --global prettier`) if you want editor CLI formatting.
+For performance testing, pause the moving gradients by editing `src/style.css`:
 
-## 3) Setup
-
-```bash
-git clone https://github.com/your-user/pong-portfolio.git
-cd pong-portfolio
-npm install
+```css
+.ambient::before,
+.ambient::after {
+  /* comment out or remove the animation line */
+  animation: none;
+}
 ```
 
-## 4) Run in WebStorm (Windows 11)
+Alternatively, set `animation: none !important;` via DevTools if you only need a temporary toggle.
 
-1. Open **WebStorm** → **File → Open…** and select the `pong-portfolio` folder.
-2. Configure the Node interpreter: **File → Settings → Languages & Frameworks → Node.js** and point it to the Node.js LTS installation.
-3. To run scripts, use the **npm** tool window (View → Tool Windows → npm) or the integrated **Terminal**.
-4. Start the development server with `npm run dev`. WebStorm will open a browser preview; otherwise, copy the URL (default http://localhost:5173) into your browser.
-5. Prefer a static preview instead? Right-click `index.html` → **Open in Browser** or enable WebStorm's Live Edit feature.
-6. To debug, create a JavaScript Debug configuration (**Run → Edit Configurations → + → JavaScript Debug**) targeting the dev server URL, enable "Break on exceptions," and start debugging. View console logs in the browser DevTools console (F12) or via WebStorm's Debug Console.
+## Customize colors, gradients, and phrases
 
-## 5) Local testing checklist
+- **Section button aesthetics**: update the theme rules in `src/style.css` under the `target-link--*` selectors. The animated orb uses the `@keyframes orb-pulse` and `orb-ambient` definitions in the same file.
+- **Background hues**: adjust the root color tokens (`--bg-base`, `--bg-alt`, `--accent`) or the gradient stops inside the `.ambient` selectors in `src/style.css`.
+- **Paddle / ball glow**: tweak the hue speed or glow intensity in `drawPaddle` and `drawBall` within `src/main.js`.
+- **Header phrases**: edit `CONFIG.phrases` in `src/main.js`. The typewriter layout automatically resizes to fit the new longest phrase.
+- **Navigation URLs & labels**: modify `CONFIG.urls` and the matching theme map in `src/main.js`.
 
-- Press **Enter**: the ball launches upward from a random upper-field start with a slight random left/right motion, then rebounds off the top paddle.
-- Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys; it stays anchored near the top edge while the ball dives toward the bottom targets.
-- Confirm the bottom navigation shows **Creative Portfolio** alongside the other sections and that redirects fire when the ball lands in each range.
-- Let the ball exit the bottom edge—if it crosses within a target's column, the button pulses briefly and then `window.location` changes to the configured URL.
-- Confirm the header's typewriter animation loops through all phrases above the canvas without clipping.
-- Toggle debug mode by editing `CONFIG.DEBUG` in `src/main.js`:
-  - `true`: logs collisions, keeps the ball in-bounds, and suppresses redirects (including clicks on the target nav).
-  - `false`: normal navigation behavior.
-
-## 6) Build and production preview
+## Build scripts
 
 ```bash
-npm run build
-npm run preview
+npm run dev     # start Vite locally
+npm run build   # production build (outputs to dist/)
+npm run preview # preview the build locally
 ```
-
-- The production build outputs to the `dist/` folder.
-- `npm run preview` serves the build locally (default http://localhost:4173).
-
-## 7) Deploy options
-
-### GitHub Pages
-
-1. Commit and push the repository to GitHub.
-2. In the repository settings → **Pages**, choose the `gh-pages` branch or `main` + `/dist` (after using a Pages workflow) as the source.
-3. Optionally add a custom domain and enable "Enforce HTTPS".
-4. Automate deployment by running `npm run build`, committing the `dist/` output to the `gh-pages` branch, and pushing, or configure a GitHub Actions workflow for Vite.
-
-### Static hosting alternative
-
-Any static host (Netlify, Vercel, Render Static, Cloudflare Pages) can deploy the generated `dist/` folder. Build command: `npm run build`. Publish directory: `dist/`.
-
-## 8) Config reference
-
-- **Typewriter phrases**: edit `CONFIG.phrases` in `src/main.js` (updates both the header copy and the animation cycle).
-- **Navigation labels & URLs**: edit `CONFIG.urls` in `src/main.js`. The nav bar and collision lanes read from the same entries (including **Creative Portfolio**).
-- **Canvas tuning**: adjust `CONFIG.canvas` values for paddle size/offset, speeds, and ball radius/background color.
-
-## 9) Known limitations and TODO
-
-- Add sound effects and bounce feedback.
-- Track scoring / combo mechanics.
-- Improve mobile touch controls and accessibility cues.
-- Pause / resume toggle and multiple lives.
 
 ## License
 
-This project is released under the [MIT License](./LICENSE).
+Released under the [MIT License](./LICENSE).

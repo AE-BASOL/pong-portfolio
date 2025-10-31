@@ -18,7 +18,7 @@ const CONFIG = {
     'Welcome to my interactive portfolio.'
   ],
   canvas: {
-    background: '#0b1729',
+    background: '#030712',
     paddleWidth: 140,
     paddleHeight: 16,
     paddleOffset: 70,
@@ -26,6 +26,14 @@ const CONFIG = {
     ballRadius: 11,
     ballSpeed: 5.6
   }
+};
+
+const BUTTON_THEMES = {
+  About: 'target-link--about',
+  Brain: 'target-link--brain',
+  'Creative Portfolio': 'target-link--creative',
+  Research: 'target-link--research',
+  Work: 'target-link--work'
 };
 
 const canvas = document.getElementById('game');
@@ -43,7 +51,8 @@ const paddle = {
   height: paddleHeight,
   x: canvas.width / 2 - paddleWidth / 2,
   y: paddleOffset,
-  targetX: null
+  targetX: null,
+  glowIntensity: 0
 };
 
 const ball = {
@@ -87,7 +96,8 @@ function buildTargetsNav() {
 
   targetEntries.forEach(([label, url], index) => {
     const link = document.createElement('a');
-    link.className = 'target-link';
+    const themeClass = BUTTON_THEMES[label];
+    link.className = `target-link ${themeClass ?? ''}`.trim();
     link.href = url;
     link.textContent = label;
     link.addEventListener('click', (event) => {
@@ -180,7 +190,7 @@ function drawRoundedRectPath(context, x, y, width, height, radius) {
   context.closePath();
 }
 
-function drawPaddle() {
+function drawPaddle(time) {
   const radius = 18;
   const x = paddle.x;
   const y = paddle.y;
@@ -189,19 +199,27 @@ function drawPaddle() {
   ctx.save();
   drawRoundedRectPath(ctx, x, y, width, height, radius);
 
-  const gradientFill = ctx.createLinearGradient(x, y, x, y + height);
-  gradientFill.addColorStop(0, 'rgba(248, 250, 252, 0.45)');
-  gradientFill.addColorStop(1, 'rgba(15, 23, 42, 0.7)');
+  // Animate a shifting rainbow gradient along the paddle width.
+  const seconds = (time || performance.now()) / 1000;
+  const gradientFill = ctx.createLinearGradient(x, y, x + width, y + height);
+  const hueStart = (seconds * 48) % 360;
+  for (let i = 0; i <= 4; i += 1) {
+    const hue = (hueStart + i * 72) % 360;
+    gradientFill.addColorStop(i / 4, `hsla(${hue}, 80%, 62%, 0.85)`);
+  }
 
   ctx.fillStyle = gradientFill;
-  ctx.globalAlpha = 0.9;
+  ctx.shadowBlur = 12 + paddle.glowIntensity * 28;
+  ctx.shadowColor = `hsla(${hueStart}, 85%, 68%, ${0.55 + paddle.glowIntensity * 0.35})`;
+  ctx.globalAlpha = 0.95;
   ctx.fill();
 
-  const outline = ctx.createLinearGradient(x, y, x, y + height);
-  outline.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
-  outline.addColorStop(1, 'rgba(59, 130, 246, 0.35)');
+  // Soft outline to anchor the paddle against the dark background.
+  const outline = ctx.createLinearGradient(x, y, x + width, y + height);
+  outline.addColorStop(0, 'rgba(15, 23, 42, 0.4)');
+  outline.addColorStop(1, 'rgba(226, 232, 240, 0.55)');
 
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.8;
   ctx.strokeStyle = outline;
   ctx.globalAlpha = 1;
   ctx.stroke();
@@ -209,10 +227,14 @@ function drawPaddle() {
 }
 
 function drawBall() {
+  ctx.save();
   ctx.beginPath();
-  ctx.fillStyle = '#f1f5f9';
+  ctx.fillStyle = '#f8fafc';
+  ctx.shadowBlur = 14;
+  ctx.shadowColor = 'rgba(248, 250, 252, 0.65)';
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 }
 
 function animateTargets(dt) {
@@ -292,6 +314,7 @@ function handlePaddleCollision() {
     ball.dx = speed * Math.sin(bounceAngle);
     ball.dy = Math.abs(speed * Math.cos(bounceAngle));
     ball.y = paddle.y + paddle.height + ball.radius + 1;
+    paddle.glowIntensity = 1; // Intensify glow when the ball hits the paddle.
   }
 }
 
@@ -342,6 +365,10 @@ function update(dt) {
   updatePaddleFromKeyboard();
   updatePaddleFromMouse();
 
+  if (paddle.glowIntensity > 0) {
+    paddle.glowIntensity = Math.max(0, paddle.glowIntensity - (dt || 16.67) / 680);
+  }
+
   if (!ball.launched) {
     return;
   }
@@ -361,9 +388,9 @@ function update(dt) {
   }
 }
 
-function render() {
+function render(time) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawPaddle();
+  drawPaddle(time);
   drawBall();
 }
 
@@ -372,7 +399,7 @@ function loop(timestamp = 0) {
   lastTime = timestamp;
   animateTargets(dt || 16.67);
   update(dt);
-  render();
+  render(timestamp);
   requestAnimationFrame(loop);
 }
 
