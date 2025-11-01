@@ -144,17 +144,19 @@ body {
 }
 
 #targets {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: clamp(2.2rem, 5vw, 3.6rem) clamp(2.6rem, 6vw, 4.4rem);
-  padding: clamp(1.8rem, 4.2vw, 2.8rem) clamp(2.8rem, 9vw, 6.8rem);
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 3;
+  overflow: visible;
 }
 
 .target-link {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -168,13 +170,15 @@ body {
   transition: transform 0.35s ease, filter 0.35s ease, box-shadow 0.35s ease, background 0.35s ease;
   --hover-lift: 0px;
   --hover-scale: 1;
+  --base-x: 0px;
+  --base-y: 0px;
   --float-x: 0px;
   --float-y: 0px;
   --dodge-x: 0px;
   --dodge-y: 0px;
   transform: translate3d(
-      calc(var(--float-x) + var(--dodge-x)),
-      calc(var(--float-y) + var(--dodge-y) - var(--hover-lift)),
+      calc(var(--base-x) + var(--float-x) + var(--dodge-x)),
+      calc(var(--base-y) + var(--float-y) + var(--dodge-y) - var(--hover-lift)),
       0
     )
     scale(var(--hover-scale));
@@ -182,6 +186,7 @@ body {
   overflow: hidden;
   will-change: transform;
   contain: paint;
+  pointer-events: auto;
 }
 
 .target-link:hover,

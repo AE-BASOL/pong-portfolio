@@ -58,6 +58,12 @@ const {
 } = CONFIG.constants;
 
 const PADDLE_PULSE_DURATION = 200;
+const TARGET_SPEED = {
+  x: { min: 26, max: 52 },
+  y: { min: 18, max: 36 }
+};
+const TARGET_EDGE_BUFFER = 48;
+const BOX_HIT_COOLDOWN = 160;
 
 const paddle = {
   width: PADDLE_WIDTH,
@@ -73,8 +79,7 @@ const ball = {
   radius: BALL_SIZE,
   dx: 0,
   dy: 0,
-  speed: BALL_SPEED,
-  launched: false
+  speed: BALL_SPEED
 };
 
 const keyState = {
@@ -87,7 +92,11 @@ const boxes = targetEntries.map(([label, url]) => ({
   label,
   url,
   x: 0,
+  y: 0,
   width: 0,
+  height: 0,
+  velocity: { x: 0, y: 0 },
+  hitCooldown: 0,
   element: null,
   lives: BOX_LIVES,
   float: {
@@ -137,6 +146,8 @@ function buildTargetsNav() {
     navElement.appendChild(link);
     boxes[index].element = link;
     boxes[index].livesElement = livesContainer;
+    link.style.setProperty('--base-x', '0px');
+    link.style.setProperty('--base-y', '0px');
     link.style.setProperty('--float-x', '0px');
     link.style.setProperty('--float-y', '0px');
     link.style.setProperty('--dodge-x', '0px');
@@ -149,6 +160,60 @@ function buildTargetsNav() {
 buildTargetsNav();
 
 resetBall();
+
+let viewportWidth = window.innerWidth;
+let viewportHeight = window.innerHeight;
+
+function updateViewportMetrics() {
+  viewportWidth = window.innerWidth;
+  viewportHeight = window.innerHeight;
+}
+
+function measureBoxes() {
+  boxes.forEach((box) => {
+    if (!box.element) return;
+    const rect = box.element.getBoundingClientRect();
+    box.width = rect.width;
+    box.height = rect.height;
+  });
+}
+
+function applyBoxPosition(box) {
+  if (!box.element) return;
+  box.element.style.setProperty('--base-x', `${box.x.toFixed(2)}px`);
+  box.element.style.setProperty('--base-y', `${box.y.toFixed(2)}px`);
+}
+
+function randomVelocity(range) {
+  const magnitude = randomBetween(range.min, range.max);
+  return (Math.random() > 0.5 ? 1 : -1) * magnitude;
+}
+
+function initializeBoxMotion() {
+  requestAnimationFrame(() => {
+    updateViewportMetrics();
+    measureBoxes();
+    boxes.forEach((box) => {
+      if (!box.element) return;
+      const horizontalMax = Math.max(viewportWidth - box.width, TARGET_EDGE_BUFFER);
+      const verticalMax = Math.max(viewportHeight - box.height, TARGET_EDGE_BUFFER);
+      box.x = randomBetween(-TARGET_EDGE_BUFFER, horizontalMax);
+      box.y = randomBetween(-TARGET_EDGE_BUFFER, verticalMax);
+      box.velocity.x = randomVelocity(TARGET_SPEED.x);
+      box.velocity.y = randomVelocity(TARGET_SPEED.y);
+      if (Math.abs(box.velocity.x) < 8) {
+        box.velocity.x = box.velocity.x < 0 ? -18 : 18;
+      }
+      if (Math.abs(box.velocity.y) < 8) {
+        box.velocity.y = box.velocity.y < 0 ? -14 : 14;
+      }
+      box.hitCooldown = 0;
+      applyBoxPosition(box);
+    });
+  });
+}
+
+initializeBoxMotion();
 
 let lastTime = 0;
 let navAnimationTime = 0;
@@ -218,34 +283,23 @@ function resetBoxLives(box) {
 }
 
 function resetBall() {
-  ball.launched = false;
-  ball.dx = 0;
-  ball.dy = 0;
   paddle.pulseTime = 0;
-  const { minX, maxX } = getPaddleBounds();
-  const horizontalPadding = 20;
-  const minBallX = Math.max(ball.radius + horizontalPadding, minX);
-  const maxBallX = Math.min(canvas.width - ball.radius - horizontalPadding, maxX + paddle.width);
-  ball.x = randomBetween(minBallX, maxBallX);
-
-  const minY = paddle.y + paddle.height + ball.radius + 24;
-  const maxY = canvas.height * 0.48;
-  ball.y = randomBetween(minY, maxY);
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  const angle = randomBetween(0.22, 0.78) * Math.PI;
+  const directionX = Math.random() > 0.5 ? 1 : -1;
+  const directionY = Math.random() > 0.5 ? 1 : -1;
+  const vx = Math.cos(angle) * ball.speed * directionX;
+  const vy = Math.sin(angle) * ball.speed * directionY;
+  ball.dx = vx;
+  ball.dy = vy;
+  if (Math.abs(ball.dy) < ball.speed * 0.35) {
+    ball.dy = Math.sign(ball.dy || 1) * ball.speed * 0.45;
+  }
 }
 
 function launchBall() {
-  if (ball.launched) return;
-  ball.launched = true;
-
-  const maxHorizontal = ball.speed * 0.95;
-  const minHorizontal = maxHorizontal * 0.25;
-  let vx = (Math.random() * 2 - 1) * maxHorizontal;
-  while (Math.abs(vx) < minHorizontal) {
-    vx = (Math.random() * 2 - 1) * maxHorizontal;
-  }
-
-  ball.dx = vx;
-  ball.dy = -Math.abs(ball.speed * 1.08);
+  resetBall();
 }
 
 function updatePaddleFromKeyboard() {
@@ -316,6 +370,38 @@ function drawBall() {
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+function updateBoxMotion(dt) {
+  const delta = dt || 16.67;
+  const seconds = delta / 1000;
+  boxes.forEach((box) => {
+    if (!box.element) return;
+    box.hitCooldown = Math.max(0, box.hitCooldown - delta);
+    box.x += box.velocity.x * seconds;
+    box.y += box.velocity.y * seconds;
+
+    const width = box.width || box.element.offsetWidth;
+    const height = box.height || box.element.offsetHeight;
+    box.width = width;
+    box.height = height;
+    const horizontalLimit = viewportWidth + TARGET_EDGE_BUFFER;
+    const verticalLimit = viewportHeight + TARGET_EDGE_BUFFER;
+
+    if (box.x > horizontalLimit) {
+      box.x = -width - TARGET_EDGE_BUFFER;
+    } else if (box.x < -width - TARGET_EDGE_BUFFER) {
+      box.x = horizontalLimit;
+    }
+
+    if (box.y > verticalLimit) {
+      box.y = -height - TARGET_EDGE_BUFFER;
+    } else if (box.y < -height - TARGET_EDGE_BUFFER) {
+      box.y = verticalLimit;
+    }
+
+    applyBoxPosition(box);
+  });
 }
 
 function animateTargets(dt) {
@@ -402,18 +488,21 @@ function triggerTargetDodge(box) {
   }, 280);
 }
 
-function maybeDodgeTargets() {
-  if (!ball.launched || ball.dy <= 0 || ball.y < canvas.height - 140) {
-    return;
-  }
-
-  const approaching = boxes.find(
-    (box) => ball.x >= box.x - 20 && ball.x <= box.x + box.width + 20
-  );
-
-  if (approaching && Math.random() < 0.04) {
-    triggerTargetDodge(approaching);
-  }
+function maybeDodgeTargets(metrics) {
+  const { ballScreenX, ballScreenY } = metrics;
+  boxes.forEach((box) => {
+    if (!box.element || box.dodging) return;
+    const rect = box.element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = ballScreenX - centerX;
+    const dy = ballScreenY - centerY;
+    const distanceSq = dx * dx + dy * dy;
+    const threshold = 160 * 160;
+    if (distanceSq < threshold && Math.random() < 0.02) {
+      triggerTargetDodge(box);
+    }
+  });
 }
 
 function handlePaddleCollision() {
@@ -448,37 +537,94 @@ function handleWallCollisions() {
     ball.y = ball.radius;
     ball.dy = Math.abs(ball.dy || ball.speed);
   }
+  if (ball.y + ball.radius >= canvas.height) {
+    ball.y = canvas.height - ball.radius;
+    ball.dy = -Math.abs(ball.dy || ball.speed);
+  }
 }
 
-function handleTargetCollision() {
-  if (ball.y - ball.radius < canvas.height) {
+function getCanvasMetrics() {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width > 0 ? rect.width / canvas.width : 1;
+  const scaleY = rect.height > 0 ? rect.height / canvas.height : 1;
+  return {
+    rect,
+    scaleX,
+    scaleY,
+    invScaleX: scaleX !== 0 ? 1 / scaleX : 1,
+    invScaleY: scaleY !== 0 ? 1 / scaleY : 1,
+    ballScreenX: rect.left + ball.x * scaleX,
+    ballScreenY: rect.top + ball.y * scaleY,
+    ballScreenRadiusX: ball.radius * scaleX,
+    ballScreenRadiusY: ball.radius * scaleY
+  };
+}
+
+function handleTargetCollisions(metrics) {
+  const { rect: canvasRect, invScaleX, invScaleY } = metrics;
+  if (!canvasRect || !Number.isFinite(invScaleX) || !Number.isFinite(invScaleY)) {
     return;
   }
 
-  const target = boxes.find((box) => ball.x >= box.x && ball.x < box.x + box.width);
-  if (target) {
-    const depleted = triggerTargetHit(target);
-    if (depleted) {
-      ball.launched = false;
-      ball.dx = 0;
-      ball.dy = 0;
-    } else {
-      ball.dy = -Math.abs(ball.dy || ball.speed);
-      ball.y = canvas.height - ball.radius - 4;
+  boxes.forEach((box) => {
+    if (!box.element || box.hitCooldown > 0) return;
+    const boxRect = box.element.getBoundingClientRect();
+    if (!boxRect.width || !boxRect.height) return;
+
+    const left = (boxRect.left - canvasRect.left) * invScaleX;
+    const right = (boxRect.right - canvasRect.left) * invScaleX;
+    const top = (boxRect.top - canvasRect.top) * invScaleY;
+    const bottom = (boxRect.bottom - canvasRect.top) * invScaleY;
+
+    const overlapsX = ball.x + ball.radius > left && ball.x - ball.radius < right;
+    const overlapsY = ball.y + ball.radius > top && ball.y - ball.radius < bottom;
+    if (!overlapsX || !overlapsY) {
+      return;
     }
-  } else {
-    resetBall();
-  }
+
+    const centerX = (left + right) / 2;
+    const centerY = (top + bottom) / 2;
+    const halfWidth = Math.max(1, (right - left) / 2);
+    const halfHeight = Math.max(1, (bottom - top) / 2);
+    const normalizedX = (ball.x - centerX) / halfWidth;
+    const normalizedY = (ball.y - centerY) / halfHeight;
+
+    if (Math.abs(normalizedX) > Math.abs(normalizedY)) {
+      if (normalizedX > 0) {
+        ball.x = right + ball.radius;
+        ball.dx = Math.abs(ball.dx || ball.speed);
+      } else {
+        ball.x = left - ball.radius;
+        ball.dx = -Math.abs(ball.dx || ball.speed);
+      }
+    } else {
+      if (normalizedY > 0) {
+        ball.y = bottom + ball.radius;
+        ball.dy = Math.abs(ball.dy || ball.speed);
+      } else {
+        ball.y = top - ball.radius;
+        ball.dy = -Math.abs(ball.dy || ball.speed);
+      }
+    }
+
+    const depleted = triggerTargetHit(box);
+    box.hitCooldown = BOX_HIT_COOLDOWN;
+
+    if (!depleted) {
+      const speed = Math.hypot(ball.dx, ball.dy) || ball.speed;
+      if (Math.abs(speed - ball.speed) > 0.01) {
+        const adjust = ball.speed / speed;
+        ball.dx *= adjust;
+        ball.dy *= adjust;
+      }
+    }
+  });
 }
 
 function update(dt) {
   updatePaddleFromKeyboard();
   if (paddle.pulseTime > 0) {
     paddle.pulseTime = Math.max(0, paddle.pulseTime - (dt || 16.67));
-  }
-
-  if (!ball.launched) {
-    return;
   }
 
   const delta = dt || 16.67;
@@ -488,10 +634,16 @@ function update(dt) {
 
   handleWallCollisions();
   handlePaddleCollision();
-  maybeDodgeTargets();
-  handleTargetCollision();
+  const metrics = getCanvasMetrics();
+  maybeDodgeTargets(metrics);
+  handleTargetCollisions(metrics);
 
-  if (ball.y - ball.radius > canvas.height + 30) {
+  if (
+    ball.x < -ball.radius ||
+    ball.x > canvas.width + ball.radius ||
+    ball.y < -ball.radius ||
+    ball.y > canvas.height + ball.radius
+  ) {
     resetBall();
   }
 }
@@ -505,6 +657,7 @@ function render() {
 function loop(timestamp = 0) {
   const dt = timestamp - lastTime;
   lastTime = timestamp;
+  updateBoxMotion(dt || 16.67);
   animateTargets(dt || 16.67);
   update(dt);
   render();
@@ -555,6 +708,7 @@ window.addEventListener('keyup', (event) => {
 
 function updatePaddleFromPointer(clientX) {
   const rect = canvas.getBoundingClientRect();
+  if (!rect.width) return;
   const relative = (clientX - rect.left) / rect.width;
   const x = relative * canvas.width - paddle.width / 2;
   const { minX, maxX } = getPaddleBounds();
@@ -571,20 +725,20 @@ canvas.addEventListener('touchmove', (event) => {
   event.preventDefault();
 });
 
-function updateBoxLayout() {
-  const margin = canvas.width * PADDLE_MARGIN_RATIO;
-  const usableWidth = canvas.width - margin * 2;
-  const segment = usableWidth / boxes.length;
-  const boxWidth = segment * 0.68;
-  boxes.forEach((box, index) => {
-    box.width = boxWidth;
-    box.x = margin + index * segment + (segment - boxWidth) / 2;
+function handleResize() {
+  updateViewportMetrics();
+  measureBoxes();
+  boxes.forEach((box) => {
+    if (!box.element) return;
+    const maxX = viewportWidth + TARGET_EDGE_BUFFER;
+    const maxY = viewportHeight + TARGET_EDGE_BUFFER;
+    box.x = clamp(box.x, -box.width - TARGET_EDGE_BUFFER, maxX);
+    box.y = clamp(box.y, -box.height - TARGET_EDGE_BUFFER, maxY);
+    applyBoxPosition(box);
   });
 }
 
-updateBoxLayout();
-
-window.addEventListener('resize', updateBoxLayout);
+window.addEventListener('resize', handleResize);
 
 window.__PONG_DEBUG__ = {
   set: setDebug,
