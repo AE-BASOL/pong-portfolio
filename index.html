@@ -11,14 +11,17 @@
     <main class="layout">
       <header id="typewriter" class="typewriter" aria-live="polite"></header>
       <section id="game-wrap">
-        <canvas
-          id="game"
-          width="720"
-          height="420"
-          aria-label="Pong navigation game"
-        ></canvas>
+        <div id="playfield">
+          <canvas
+            id="game"
+            width="720"
+            height="420"
+            aria-label="Pong navigation game"
+          ></canvas>
+          <div id="play-boundary" aria-hidden="true"></div>
+          <nav id="targets" aria-label="Portfolio sections"></nav>
+        </div>
       </section>
-      <nav id="targets" aria-label="Portfolio sections"></nav>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>

@@ -41,6 +41,8 @@ const BUTTON_THEMES = {
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const navElement = document.getElementById('targets');
+const playfieldElement = document.getElementById('playfield');
+const boundaryElement = document.getElementById('play-boundary');
 
 const typewriterElement = document.getElementById('typewriter');
 createTypewriter(typewriterElement, CONFIG.phrases);
@@ -57,13 +59,24 @@ const {
   FLOAT_AMPLITUDE
 } = CONFIG.constants;
 
+const PLAYFIELD_RATIO = 2 / 3;
+const MIN_PLAYFIELD_MARGIN = 24;
 const PADDLE_PULSE_DURATION = 200;
 const TARGET_SPEED = {
   x: { min: 26, max: 52 },
   y: { min: 18, max: 36 }
 };
-const TARGET_EDGE_BUFFER = 48;
+const TARGET_EDGE_BUFFER = 32;
 const BOX_HIT_COOLDOWN = 160;
+
+const playfield = {
+  left: 0,
+  top: 0,
+  width: canvas.width,
+  height: canvas.height
+};
+
+let playfieldInitialized = false;
 
 const paddle = {
   width: PADDLE_WIDTH,
@@ -81,6 +94,9 @@ const ball = {
   dy: 0,
   speed: BALL_SPEED
 };
+
+let previousBallX = ball.x;
+let previousBallY = ball.y;
 
 const keyState = {
   left: false,
@@ -157,12 +173,12 @@ function buildTargetsNav() {
   boxes.forEach((box) => resetBoxLives(box));
 }
 
-buildTargetsNav();
-
-resetBall();
-
 let viewportWidth = window.innerWidth;
 let viewportHeight = window.innerHeight;
+
+buildTargetsNav();
+updatePlayfieldDimensions();
+resetBall();
 
 function updateViewportMetrics() {
   viewportWidth = window.innerWidth;
@@ -178,10 +194,94 @@ function measureBoxes() {
   });
 }
 
+function updatePlayfieldDimensions() {
+  updateViewportMetrics();
+  const safeViewportWidth = Math.max(1, viewportWidth);
+  const safeViewportHeight = Math.max(1, viewportHeight);
+  const maxWidth = Math.min(
+    safeViewportWidth,
+    Math.max(260, safeViewportWidth - MIN_PLAYFIELD_MARGIN * 2)
+  );
+  const maxHeight = Math.min(
+    safeViewportHeight,
+    Math.max(260, safeViewportHeight - MIN_PLAYFIELD_MARGIN * 2)
+  );
+  const targetWidth = Math.floor(safeViewportWidth * PLAYFIELD_RATIO);
+  const targetHeight = Math.floor(safeViewportHeight * PLAYFIELD_RATIO);
+  const minWidth = Math.min(PADDLE_WIDTH + TARGET_EDGE_BUFFER * 2, maxWidth);
+  const minHeight = Math.min(PADDLE_OFFSET + paddle.height + TARGET_EDGE_BUFFER * 2, maxHeight);
+  const width = clamp(targetWidth, minWidth, maxWidth);
+  const height = clamp(targetHeight, minHeight, maxHeight);
+
+  playfield.width = width;
+  playfield.height = height;
+  playfield.left = (safeViewportWidth - width) / 2;
+  playfield.top = (safeViewportHeight - height) / 2;
+
+  if (playfieldElement) {
+    playfieldElement.style.width = `${width}px`;
+    playfieldElement.style.height = `${height}px`;
+    playfieldElement.style.left = `${playfield.left}px`;
+    playfieldElement.style.top = `${playfield.top}px`;
+  }
+
+  if (navElement) {
+    navElement.style.width = `${width}px`;
+    navElement.style.height = `${height}px`;
+  }
+
+  if (boundaryElement) {
+    boundaryElement.style.borderWidth = '2px';
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  measureBoxes();
+
+  const { minX, maxX } = getPaddleBounds();
+  if (!playfieldInitialized || !Number.isFinite(paddle.x)) {
+    paddle.x = (minX + maxX) / 2;
+  } else {
+    paddle.x = clamp(paddle.x, minX, maxX);
+  }
+  paddle.y = clamp(PADDLE_OFFSET, 0, Math.max(0, playfield.height - paddle.height));
+
+  ball.x = clamp(ball.x, ball.radius, canvas.width - ball.radius);
+  ball.y = clamp(ball.y, ball.radius, canvas.height - ball.radius);
+  previousBallX = ball.x;
+  previousBallY = ball.y;
+
+  boxes.forEach((box) => {
+    if (!box.element) return;
+    const bounds = getBoxBounds(box);
+    box.x = clamp(box.x, bounds.minX, bounds.maxX);
+    box.y = clamp(box.y, bounds.minY, bounds.maxY);
+    applyBoxPosition(box);
+  });
+
+  playfieldInitialized = true;
+}
+
 function applyBoxPosition(box) {
   if (!box.element) return;
   box.element.style.setProperty('--base-x', `${box.x.toFixed(2)}px`);
   box.element.style.setProperty('--base-y', `${box.y.toFixed(2)}px`);
+}
+
+function getBoxBounds(box) {
+  const float = box.float ?? {};
+  const width = box.width || box.element?.offsetWidth || 0;
+  const height = box.height || box.element?.offsetHeight || 0;
+  const marginX = TARGET_EDGE_BUFFER + Math.abs(float.amplitudeX ?? 0);
+  const marginY = TARGET_EDGE_BUFFER + Math.abs(float.amplitudeY ?? 0);
+  const minX = marginX;
+  const minY = marginY;
+  const maxX = Math.max(minX, playfield.width - width - marginX);
+  const maxY = Math.max(minY, playfield.height - height - marginY);
+  return { minX, maxX, minY, maxY };
 }
 
 function randomVelocity(range) {
@@ -191,14 +291,17 @@ function randomVelocity(range) {
 
 function initializeBoxMotion() {
   requestAnimationFrame(() => {
-    updateViewportMetrics();
-    measureBoxes();
     boxes.forEach((box) => {
       if (!box.element) return;
-      const horizontalMax = Math.max(viewportWidth - box.width, TARGET_EDGE_BUFFER);
-      const verticalMax = Math.max(viewportHeight - box.height, TARGET_EDGE_BUFFER);
-      box.x = randomBetween(-TARGET_EDGE_BUFFER, horizontalMax);
-      box.y = randomBetween(-TARGET_EDGE_BUFFER, verticalMax);
+      const bounds = getBoxBounds(box);
+      const hasHorizontalRange = bounds.maxX > bounds.minX;
+      const hasVerticalRange = bounds.maxY > bounds.minY;
+      box.x = hasHorizontalRange
+        ? randomBetween(bounds.minX, bounds.maxX)
+        : bounds.minX;
+      box.y = hasVerticalRange
+        ? randomBetween(bounds.minY, bounds.maxY)
+        : bounds.minY;
       box.velocity.x = randomVelocity(TARGET_SPEED.x);
       box.velocity.y = randomVelocity(TARGET_SPEED.y);
       if (Math.abs(box.velocity.x) < 8) {
@@ -296,6 +399,8 @@ function resetBall() {
   if (Math.abs(ball.dy) < ball.speed * 0.35) {
     ball.dy = Math.sign(ball.dy || 1) * ball.speed * 0.45;
   }
+  previousBallX = ball.x;
+  previousBallY = ball.y;
 }
 
 function launchBall() {
@@ -385,19 +490,29 @@ function updateBoxMotion(dt) {
     const height = box.height || box.element.offsetHeight;
     box.width = width;
     box.height = height;
-    const horizontalLimit = viewportWidth + TARGET_EDGE_BUFFER;
-    const verticalLimit = viewportHeight + TARGET_EDGE_BUFFER;
 
-    if (box.x > horizontalLimit) {
-      box.x = -width - TARGET_EDGE_BUFFER;
-    } else if (box.x < -width - TARGET_EDGE_BUFFER) {
-      box.x = horizontalLimit;
+    const bounds = getBoxBounds(box);
+
+    if (bounds.maxX <= bounds.minX) {
+      box.x = bounds.minX;
+      box.velocity.x = 0;
+    } else if (box.x <= bounds.minX) {
+      box.x = bounds.minX;
+      box.velocity.x = Math.abs(box.velocity.x || randomVelocity(TARGET_SPEED.x));
+    } else if (box.x >= bounds.maxX) {
+      box.x = bounds.maxX;
+      box.velocity.x = -Math.abs(box.velocity.x || randomVelocity(TARGET_SPEED.x));
     }
 
-    if (box.y > verticalLimit) {
-      box.y = -height - TARGET_EDGE_BUFFER;
-    } else if (box.y < -height - TARGET_EDGE_BUFFER) {
-      box.y = verticalLimit;
+    if (bounds.maxY <= bounds.minY) {
+      box.y = bounds.minY;
+      box.velocity.y = 0;
+    } else if (box.y <= bounds.minY) {
+      box.y = bounds.minY;
+      box.velocity.y = Math.abs(box.velocity.y || randomVelocity(TARGET_SPEED.y));
+    } else if (box.y >= bounds.maxY) {
+      box.y = bounds.maxY;
+      box.velocity.y = -Math.abs(box.velocity.y || randomVelocity(TARGET_SPEED.y));
     }
 
     applyBoxPosition(box);
@@ -506,22 +621,76 @@ function maybeDodgeTargets(metrics) {
 }
 
 function handlePaddleCollision() {
-  if (
-    ball.y - ball.radius <= paddle.y + paddle.height &&
-    ball.y + ball.radius >= paddle.y &&
-    ball.x >= paddle.x &&
-    ball.x <= paddle.x + paddle.width &&
-    ball.dy < 0
-  ) {
-    const relativeIntersect = ball.x - (paddle.x + paddle.width / 2);
-    const normalized = clamp(relativeIntersect / (paddle.width / 2), -1, 1);
-    const bounceAngle = normalized * (Math.PI / 3);
-    const speed = Math.hypot(ball.dx, ball.dy) || ball.speed;
-    ball.dx = speed * Math.sin(bounceAngle);
-    ball.dy = Math.abs(speed * Math.cos(bounceAngle));
-    ball.y = paddle.y + paddle.height + ball.radius + 1;
-    paddle.pulseTime = PADDLE_PULSE_DURATION;
+  const left = paddle.x;
+  const right = paddle.x + paddle.width;
+  const top = paddle.y;
+  const bottom = paddle.y + paddle.height;
+
+  const overlapsX = ball.x + ball.radius > left && ball.x - ball.radius < right;
+  const overlapsY = ball.y + ball.radius > top && ball.y - ball.radius < bottom;
+
+  if (!overlapsX || !overlapsY) {
+    return;
   }
+
+  const prevOverlapsX =
+    previousBallX + ball.radius > left && previousBallX - ball.radius < right;
+  const prevOverlapsY =
+    previousBallY + ball.radius > top && previousBallY - ball.radius < bottom;
+
+  let hitSide;
+
+  if (!prevOverlapsY && prevOverlapsX) {
+    hitSide = previousBallY < top ? 'top' : 'bottom';
+  } else if (!prevOverlapsX && prevOverlapsY) {
+    hitSide = previousBallX < left ? 'left' : 'right';
+  } else if (!prevOverlapsX && !prevOverlapsY) {
+    const distances = [
+      { side: 'left', value: Math.abs(previousBallX + ball.radius - left) },
+      { side: 'right', value: Math.abs(right - (previousBallX - ball.radius)) },
+      { side: 'top', value: Math.abs(previousBallY + ball.radius - top) },
+      { side: 'bottom', value: Math.abs(bottom - (previousBallY - ball.radius)) }
+    ];
+    distances.sort((a, b) => a.value - b.value);
+    hitSide = distances[0].side;
+  } else {
+    hitSide =
+      Math.abs(ball.dy) >= Math.abs(ball.dx)
+        ? previousBallY < top
+          ? 'top'
+          : 'bottom'
+        : previousBallX < left
+        ? 'left'
+        : 'right';
+  }
+
+  const speed = Math.hypot(ball.dx, ball.dy) || ball.speed;
+
+  if (hitSide === 'left' || hitSide === 'right') {
+    const magnitude = Math.max(Math.abs(ball.dx), speed * 0.65);
+    if (hitSide === 'left') {
+      ball.x = left - ball.radius - 1;
+      ball.dx = -Math.abs(magnitude);
+    } else {
+      ball.x = right + ball.radius + 1;
+      ball.dx = Math.abs(magnitude);
+    }
+  } else {
+    const centerX = paddle.x + paddle.width / 2;
+    const relativeIntersect = ball.x - centerX;
+    const normalized = clamp(relativeIntersect / (paddle.width / 2 || 1), -1, 1);
+    const bounceAngle = normalized * (Math.PI / 3);
+    ball.dx = speed * Math.sin(bounceAngle);
+    if (hitSide === 'top') {
+      ball.y = top - ball.radius - 1;
+      ball.dy = -Math.abs(speed * Math.cos(bounceAngle));
+    } else {
+      ball.y = bottom + ball.radius + 1;
+      ball.dy = Math.abs(speed * Math.cos(bounceAngle));
+    }
+  }
+
+  paddle.pulseTime = PADDLE_PULSE_DURATION;
 }
 
 function handleWallCollisions() {
@@ -629,6 +798,8 @@ function update(dt) {
 
   const delta = dt || 16.67;
   const scale = delta / 16.67;
+  previousBallX = ball.x;
+  previousBallY = ball.y;
   ball.x += ball.dx * scale;
   ball.y += ball.dy * scale;
 
@@ -726,16 +897,7 @@ canvas.addEventListener('touchmove', (event) => {
 });
 
 function handleResize() {
-  updateViewportMetrics();
-  measureBoxes();
-  boxes.forEach((box) => {
-    if (!box.element) return;
-    const maxX = viewportWidth + TARGET_EDGE_BUFFER;
-    const maxY = viewportHeight + TARGET_EDGE_BUFFER;
-    box.x = clamp(box.x, -box.width - TARGET_EDGE_BUFFER, maxX);
-    box.y = clamp(box.y, -box.height - TARGET_EDGE_BUFFER, maxY);
-    applyBoxPosition(box);
-  });
+  updatePlayfieldDimensions();
 }
 
 window.addEventListener('resize', handleResize);
