@@ -170,6 +170,94 @@ body {
   z-index: 4;
 }
 
+.hud {
+  position: absolute;
+  inset: 0;
+  padding: 1.25rem 1.5rem;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.life-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  pointer-events: none;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.life-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: radial-gradient(circle at 40% 35%, #facc15 0%, #fbbf24 45%, #f59e0b 80%);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.55);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+.life-dot.is-empty {
+  opacity: 0.2;
+  filter: grayscale(40%);
+  box-shadow: none;
+}
+
+.game-over {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  padding: 0.85rem 1.8rem;
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(12px);
+  color: #f8fafc;
+  font-size: 1.35rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.45);
+}
+
+.game-over.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.restart-button {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.75);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.restart-button:hover,
+.restart-button:focus-visible {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(56, 189, 248, 0.25);
+  background: rgba(30, 41, 59, 0.95);
+  outline: none;
+}
+
+.restart-button:active {
+  transform: translateY(0) scale(0.99);
+}
+
 .target-link {
   position: absolute;
   top: 0;

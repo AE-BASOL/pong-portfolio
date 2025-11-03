@@ -5,9 +5,9 @@ This branch keeps the Pong navigation concept but focuses on smoother motion, li
 ## What changed
 
 - **Lean ambient backdrop** – the `.ambient` gradients in `src/style.css` remain GPU-friendly so the dark atmosphere stays light on CPU.
-- **Downward launch & endless rally** – the ball now stages just below the paddle until you press **Enter**, then drops into the arena with a slight horizontal bias and never hard-resets during play.
-- **Lower-zone navigation drift** – boxes roam only through the bottom two-thirds of the framed playfield, bouncing off one another while sharing the same boundary as the paddle and ball.
-- **Static obstacle grid** – every round spawns a set of gray bricks that stay put as permanent colliders; the ball, paddle, and nav boxes all rebound from them using the same physics.
+- **Broader control surfaces** – the ball is ~30 % slower, 1.5× larger, and the paddle is twice as wide so rebounds feel deliberate without losing finesse.
+- **Bottom-lane navigation drift** – boxes now roam only through the lower third of the frame, bouncing softly off each other while staying inside the shared boundary with the paddle and ball.
+- **Life loop & restart** – touching the top wall costs one of three glowing lives, shows a “Game Over” overlay at zero, and exposes a restart button that resets lives, positions, and box motion without teleporting targets on hit.
 - **Debug overlay** – press **F** or call `window.__PONG_DEBUG__.set(true)` to view a live FPS/physics readout without touching the main game loop.
 
 ## Gameplay tuning constants
@@ -19,9 +19,7 @@ The top of `src/main.js` exposes a `CONFIG.constants` object so you can rebalanc
 | `BALL_SPEED` | Launch and travel speed of the ball. |
 | `BALL_SIZE` | Radius of the ball in canvas pixels. |
 | `BOX_LIVES` | Number of hits a navigation box can take before redirecting. |
-| `BRICK_COUNT` | Number of static bricks spawned at the beginning of a round. |
-| `BRICK_MIN_WIDTH` / `BRICK_MAX_WIDTH` | Pixel range for brick width when randomly generated. |
-| `BRICK_MIN_HEIGHT` / `BRICK_MAX_HEIGHT` | Pixel range for brick height when randomly generated. |
+| `PLAYER_LIVES` | Player lives before Game Over triggers. |
 | `PADDLE_WIDTH` / `PADDLE_HEIGHT` | Paddle dimensions in pixels. |
 | `PADDLE_SPEED` | Keyboard movement speed per frame. |
 | `PADDLE_MARGIN_RATIO` | Percentage of canvas width reserved as lateral padding for the paddle. |
@@ -37,7 +35,7 @@ To freeze the ambient animation for profiling, comment out the `animation` decla
 
 - **Section themes** – edit the `target-link--*` rules in `src/style.css` to adjust gradients, textures, or hover states for each navigation button.
 - **Floating behavior** – tune the random float ranges in `boxes` inside `src/main.js` if you want calmer or wilder movement.
-- **Brick layer** – tweak the `BRICK_*` constants or the `generateBricks` helper in `src/main.js` to control how many static blocks spawn and how large they appear.
+- **Life system** – change `PLAYER_LIVES` in `CONFIG.constants`, tweak the glowing dot styles in `src/style.css`, or update the restart button text in `index.html`.
 - **Header phrases** – update `CONFIG.phrases` in `src/main.js`; the typewriter layout (`src/typewriter.js`) automatically resizes to keep a single-line headline.
 - **Destination URLs** – replace the placeholders in `CONFIG.urls` with your real portfolio links.
 
