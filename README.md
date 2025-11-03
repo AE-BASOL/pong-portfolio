@@ -1,91 +1,78 @@
-# Pong Portfolio
+# Pong Portfolio — Performance Pass
 
-A playful "game-as-navigation" landing page that mixes a Pong-like paddle interaction, collision-triggered navigation, and a looping typewriter headline.
+This branch keeps the Pong navigation concept but focuses on smoother motion, lighter rendering, and tighter responsiveness. The background is still dark and atmospheric, yet it now idles well under the 10 % CPU guideline while the gameplay elements respond instantly.
 
-## What's new in this iteration
+## What changed
 
-- Pulled back every frame and border so the paddle, ball, and floating navigation boxes appear to hover freely over the white ambient background while the fixed header remains untouched.
-- Kept the liquid-glass treatment on the navigation buttons, widened their breathing room, and left the ambient gradient animation in place without surrounding containers.
-- Preserved the faster, inverted playfield with pulsing redirects and floating/dodging targets while simplifying the canvas render down to only the paddle and ball.
+- **Lean ambient backdrop** – the `.ambient` gradients in `src/style.css` remain GPU-friendly so the dark atmosphere stays light on CPU.
+- **Broader control surfaces** – the ball is ~30 % slower, 1.5× larger, and the paddle is twice as wide so rebounds feel deliberate without losing finesse.
+- **Bottom-lane navigation drift** – boxes now roam only through the lower third of the frame, bouncing softly off each other while staying inside the shared boundary with the paddle and ball.
+- **Life loop & restart** – touching the top wall costs one of three glowing lives, shows a “Game Over” overlay at zero, and exposes a restart button that resets lives, positions, and box motion without teleporting targets on hit.
+- **Debug overlay** – press **F** or call `window.__PONG_DEBUG__.set(true)` to view a live FPS/physics readout without touching the main game loop.
 
-## 1) Stack summary
+## Gameplay tuning constants
 
-| Tool | Purpose | Version |
-| --- | --- | --- |
-| [Vite](https://vitejs.dev/) | Dev server & bundler | 5.2.0 |
-| Vanilla HTML/CSS/JS | UI & game logic | ECMAScript modules |
-| [Prettier](https://prettier.io/) | Formatting | 3.2.5 |
+The top of `src/main.js` exposes a `CONFIG.constants` object so you can rebalance feel without hunting through the loop:
 
-## 2) Prerequisites (Windows 11)
+| Constant | Purpose |
+| --- | --- |
+| `BALL_SPEED` | Launch and travel speed of the ball. |
+| `BALL_SIZE` | Radius of the ball in canvas pixels. |
+| `BOX_LIVES` | Number of hits a navigation box can take before redirecting. |
+| `PLAYER_LIVES` | Player lives before Game Over triggers. |
+| `PADDLE_WIDTH` / `PADDLE_HEIGHT` | Paddle dimensions in pixels. |
+| `PADDLE_SPEED` | Keyboard movement speed per frame. |
+| `PADDLE_MARGIN_RATIO` | Percentage of canvas width reserved as lateral padding for the paddle. |
+| `FLOAT_AMPLITUDE` | Base amplitude for the autonomous floating motion applied to nav buttons. |
 
-1. Install Node.js LTS from https://nodejs.org/en/download (choose the Windows Installer).
-2. Install Git for Windows from https://git-scm.com/download/win.
-3. Optional: install Prettier globally (`npm install --global prettier`) if you want editor CLI formatting.
+Change the values and refresh; the layout and collision logic read from this object during setup.
 
-## 3) Setup
+## Disable background motion
+
+To freeze the ambient animation for profiling, comment out the `animation` declarations on `.ambient::before` and `.ambient::after` inside `src/style.css`, or temporarily override them in DevTools with `animation: none !important;`.
+
+## Customize the look & copy
+
+- **Section themes** – edit the `target-link--*` rules in `src/style.css` to adjust gradients, textures, or hover states for each navigation button.
+- **Floating behavior** – tune the random float ranges in `boxes` inside `src/main.js` if you want calmer or wilder movement.
+- **Life system** – change `PLAYER_LIVES` in `CONFIG.constants`, tweak the glowing dot styles in `src/style.css`, or update the restart button text in `index.html`.
+- **Header phrases** – update `CONFIG.phrases` in `src/main.js`; the typewriter layout (`src/typewriter.js`) automatically resizes to keep a single-line headline.
+- **Destination URLs** – replace the placeholders in `CONFIG.urls` with your real portfolio links.
+
+## Debugging tips
+
+- Press **Enter** to launch the ball from its perch below the paddle and **F** to toggle the FPS/physics overlay.
+- From the console you can invoke `window.__PONG_DEBUG__.set(true)` (or `false`) to control the overlay programmatically. The overlay itself lives in `src/style.css` under the `.debug-overlay` selector.
+
+## Run locally on Windows 11 with WebStorm
+
+1. **Install prerequisites**
+   - [Node.js LTS](https://nodejs.org/en/download) (Windows Installer)
+   - [Git for Windows](https://git-scm.com/download/win)
+2. **Clone & install**
+   ```bash
+   git clone https://github.com/your-user/pong-portfolio.git
+   cd pong-portfolio
+   npm install
+   ```
+3. **Open in WebStorm**
+   - Start WebStorm → **File → Open…** → choose the project folder.
+   - Verify WebStorm uses your Node LTS interpreter (**File → Settings → Languages & Frameworks → Node.js**).
+4. **Run the dev server**
+   - From the WebStorm npm tool window or terminal, run `npm run dev`.
+   - Open `http://localhost:5173` in your browser (WebStorm usually auto-opens it).
+5. **Iterate**
+   - Use WebStorm’s JavaScript debug configuration for breakpoints.
+   - Inspect logs in DevTools or the IDE console while the debug overlay shows frame pacing.
+
+## Scripts
 
 ```bash
-git clone https://github.com/your-user/pong-portfolio.git
-cd pong-portfolio
-npm install
+npm run dev     # start Vite locally
+npm run build   # production build (outputs to dist/)
+npm run preview # preview the production build
 ```
-
-## 4) Run in WebStorm (Windows 11)
-
-1. Open **WebStorm** → **File → Open…** and select the `pong-portfolio` folder.
-2. Configure the Node interpreter: **File → Settings → Languages & Frameworks → Node.js** and point it to the Node.js LTS installation.
-3. To run scripts, use the **npm** tool window (View → Tool Windows → npm) or the integrated **Terminal**.
-4. Start the development server with `npm run dev`. WebStorm will open a browser preview; otherwise, copy the URL (default http://localhost:5173) into your browser.
-5. Prefer a static preview instead? Right-click `index.html` → **Open in Browser** or enable WebStorm's Live Edit feature.
-6. To debug, create a JavaScript Debug configuration (**Run → Edit Configurations → + → JavaScript Debug**) targeting the dev server URL, enable "Break on exceptions," and start debugging. View console logs in the browser DevTools console (F12) or via WebStorm's Debug Console.
-
-## 5) Local testing checklist
-
-- Press **Enter**: the ball launches upward from a random upper-field start with a slight random left/right motion, then rebounds off the top paddle.
-- Move the paddle with the mouse and the **ArrowLeft/ArrowRight** keys; it stays anchored near the top edge while the ball dives toward the bottom targets.
-- Confirm the bottom navigation shows **Creative Portfolio** alongside the other sections and that redirects fire when the ball lands in each range.
-- Let the ball exit the bottom edge—if it crosses within a target's column, the button pulses briefly and then `window.location` changes to the configured URL.
-- Confirm the header's typewriter animation loops through all phrases above the canvas without clipping.
-- Toggle debug mode by editing `CONFIG.DEBUG` in `src/main.js`:
-  - `true`: logs collisions, keeps the ball in-bounds, and suppresses redirects (including clicks on the target nav).
-  - `false`: normal navigation behavior.
-
-## 6) Build and production preview
-
-```bash
-npm run build
-npm run preview
-```
-
-- The production build outputs to the `dist/` folder.
-- `npm run preview` serves the build locally (default http://localhost:4173).
-
-## 7) Deploy options
-
-### GitHub Pages
-
-1. Commit and push the repository to GitHub.
-2. In the repository settings → **Pages**, choose the `gh-pages` branch or `main` + `/dist` (after using a Pages workflow) as the source.
-3. Optionally add a custom domain and enable "Enforce HTTPS".
-4. Automate deployment by running `npm run build`, committing the `dist/` output to the `gh-pages` branch, and pushing, or configure a GitHub Actions workflow for Vite.
-
-### Static hosting alternative
-
-Any static host (Netlify, Vercel, Render Static, Cloudflare Pages) can deploy the generated `dist/` folder. Build command: `npm run build`. Publish directory: `dist/`.
-
-## 8) Config reference
-
-- **Typewriter phrases**: edit `CONFIG.phrases` in `src/main.js` (updates both the header copy and the animation cycle).
-- **Navigation labels & URLs**: edit `CONFIG.urls` in `src/main.js`. The nav bar and collision lanes read from the same entries (including **Creative Portfolio**).
-- **Canvas tuning**: adjust `CONFIG.canvas` values for paddle size/offset, speeds, and ball radius/background color.
-
-## 9) Known limitations and TODO
-
-- Add sound effects and bounce feedback.
-- Track scoring / combo mechanics.
-- Improve mobile touch controls and accessibility cues.
-- Pause / resume toggle and multiple lives.
 
 ## License
 
-This project is released under the [MIT License](./LICENSE).
+Released under the [MIT License](./LICENSE).

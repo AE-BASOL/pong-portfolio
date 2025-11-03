@@ -11,14 +11,37 @@
     <main class="layout">
       <header id="typewriter" class="typewriter" aria-live="polite"></header>
       <section id="game-wrap">
-        <canvas
-          id="game"
-          width="720"
-          height="420"
-          aria-label="Pong navigation game"
-        ></canvas>
+        <div id="playfield">
+          <canvas
+            id="game"
+            width="720"
+            height="420"
+            aria-label="Pong navigation game"
+          ></canvas>
+          <div id="play-boundary" aria-hidden="true"></div>
+          <nav id="targets" aria-label="Portfolio sections"></nav>
+          <div class="hud" aria-hidden="false">
+            <div
+              id="life-indicator"
+              class="life-indicator"
+              role="status"
+              aria-live="polite"
+              aria-label="Lives remaining"
+            ></div>
+            <div
+              id="game-over"
+              class="game-over"
+              role="alert"
+              aria-live="assertive"
+            >
+              Game Over
+            </div>
+            <button id="restart-button" class="restart-button" type="button">
+              Restart
+            </button>
+          </div>
+        </div>
       </section>
-      <nav id="targets" aria-label="Portfolio sections"></nav>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>
