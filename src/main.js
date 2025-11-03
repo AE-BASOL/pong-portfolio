@@ -79,7 +79,6 @@ const TARGET_SPEED = {
 const TARGET_EDGE_BUFFER = 32;
 const BOX_HIT_COOLDOWN = 160;
 const BOX_VERTICAL_PADDING_RATIO = 0.12;
-const BRICK_FADE_DURATION = 220;
 
 const playfield = {
   left: 0,
@@ -105,7 +104,8 @@ const ball = {
   dx: 0,
   dy: 0,
   speed: BALL_SPEED,
-  launched: false
+  launched: false,
+  pendingLaunchOffset: 0
 };
 
 let previousBallX = ball.x;
@@ -193,7 +193,7 @@ let viewportHeight = window.innerHeight;
 
 buildTargetsNav();
 updatePlayfieldDimensions();
-placeBallAbovePaddle();
+parkBallBelowPaddle();
 
 function updateViewportMetrics() {
   viewportWidth = window.innerWidth;
@@ -296,9 +296,13 @@ function getBoxBounds(box) {
   const marginY = TARGET_EDGE_BUFFER + Math.abs(float.amplitudeY ?? 0);
   const verticalPadding = playfield.height * BOX_VERTICAL_PADDING_RATIO;
   const minX = marginX;
-  const minY = marginY + verticalPadding;
+  const zoneTop = playfield.height / 3;
+  const minY = Math.max(zoneTop + marginY, zoneTop + verticalPadding);
   const maxX = Math.max(minX, playfield.width - width - marginX);
-  const maxY = Math.max(minY, playfield.height - height - marginY - verticalPadding);
+  const maxY = Math.max(
+    minY,
+    playfield.height - height - marginY - verticalPadding
+  );
   return { minX, maxX, minY, maxY };
 }
 
@@ -339,8 +343,6 @@ function initializeBoxMotion() {
 }
 
 initializeBoxMotion();
-
-let brickAnimationTime = 0;
 
 let lastTime = 0;
 let navAnimationTime = 0;
@@ -408,19 +410,16 @@ function createBoxRect(box) {
 }
 
 function createBrickRect(brick) {
-  const offsetX = brick.offsetX ?? 0;
-  const offsetY = brick.offsetY ?? 0;
   return {
-    left: brick.x + offsetX,
-    top: brick.y + offsetY,
-    right: brick.x + offsetX + brick.width,
-    bottom: brick.y + offsetY + brick.height
+    left: brick.x,
+    top: brick.y,
+    right: brick.x + brick.width,
+    bottom: brick.y + brick.height
   };
 }
 
 /**
- * Randomly seed a drifting layer of breakout-style bricks inside the playfield.
- * Bricks soak ball hits before navigation boxes start losing lives.
+ * Randomly seed a static layer of breakout-style bricks inside the playfield.
  */
 function generateBricks() {
   bricks.length = 0;
@@ -436,34 +435,28 @@ function generateBricks() {
     const height = randomBetween(BRICK_MIN_HEIGHT, BRICK_MAX_HEIGHT);
     const minX = marginX;
     const maxX = Math.max(minX, playfield.width - marginX - width);
-    const minY = marginY + verticalPadding;
-    const maxY = Math.max(minY, playfield.height - marginY - height - verticalPadding * 0.5);
+    const zoneTop = playfield.height / 3;
+    const minY = Math.max(
+      marginY + verticalPadding,
+      zoneTop,
+      paddle.y + paddle.height + TARGET_EDGE_BUFFER * 0.5
+    );
+    const maxY = Math.max(
+      minY,
+      playfield.height - marginY - height - verticalPadding * 0.5
+    );
     if (maxX <= minX || maxY <= minY) break;
 
     const x = randomBetween(minX, maxX);
     const y = randomBetween(minY, maxY);
-
-    const float = {
-      amplitudeX: randomBetween(3, 9),
-      amplitudeY: randomBetween(3, 11),
-      speedX: randomBetween(0.0006, 0.0014),
-      speedY: randomBetween(0.0006, 0.0014),
-      phaseX: Math.random() * Math.PI * 2,
-      phaseY: Math.random() * Math.PI * 2
-    };
 
     const candidate = {
       x,
       y,
       width,
       height,
-      float,
-      offsetX: 0,
-      offsetY: 0,
       active: true,
-      collidable: true,
-      destroying: false,
-      fade: 1
+      solid: true
     };
 
     const candidateRect = createBrickRect(candidate);
@@ -483,6 +476,8 @@ function generateBricks() {
 
     bricks.push(candidate);
   }
+
+  resolvePaddleBrickCollisions();
 }
 
 function clampBricksToBounds() {
@@ -492,38 +487,22 @@ function clampBricksToBounds() {
   bricks.forEach((brick) => {
     const minX = marginX;
     const maxX = Math.max(minX, playfield.width - marginX - brick.width);
-    const minY = marginY + verticalPadding;
-    const maxY = Math.max(minY, playfield.height - marginY - brick.height - verticalPadding * 0.5);
+    const zoneTop = playfield.height / 3;
+    const minY = Math.max(
+      marginY + verticalPadding,
+      zoneTop,
+      paddle.y + paddle.height + TARGET_EDGE_BUFFER * 0.5
+    );
+    const maxY = Math.max(
+      minY,
+      playfield.height - marginY - brick.height - verticalPadding * 0.5
+    );
     brick.x = clamp(brick.x, minX, maxX);
     brick.y = clamp(brick.y, minY, maxY);
   });
 }
 
-/**
- * Animate brick drift and handle fade-outs when a brick is destroyed.
- */
-function updateBricksState(delta) {
-  brickAnimationTime += delta;
-  bricks.forEach((brick) => {
-    if (!brick.active) return;
-    const { float } = brick;
-    brick.offsetX = Math.sin(float.phaseX + brickAnimationTime * float.speedX) * float.amplitudeX;
-    brick.offsetY = Math.cos(float.phaseY + brickAnimationTime * float.speedY) * float.amplitudeY;
-    if (brick.destroying) {
-      brick.fade = Math.max(0, brick.fade - delta / BRICK_FADE_DURATION);
-      if (brick.fade <= 0) {
-        brick.active = false;
-      }
-    }
-  });
-}
-
-/**
- * Bricks gate navigation hits until the full set is cleared.
- */
-function areBricksCleared() {
-  return bricks.every((brick) => !brick.active);
-}
+function updateBricksState() {}
 
 function getPaddleBounds() {
   const minX = canvas.width * PADDLE_MARGIN_RATIO;
@@ -548,14 +527,19 @@ function resetBoxLives(box) {
 }
 
 /**
- * Park the ball directly above the paddle so launches are predictable.
+ * Park the ball just below the paddle with a subtle horizontal offset.
  */
-function placeBallAbovePaddle() {
+function parkBallBelowPaddle() {
   paddle.pulseTime = 0;
   const centerX = paddle.x + paddle.width / 2;
-  ball.x = clamp(centerX, ball.radius, canvas.width - ball.radius);
+  ball.pendingLaunchOffset = randomBetween(-0.12, 0.12) * paddle.width;
+  ball.x = clamp(
+    centerX + ball.pendingLaunchOffset,
+    ball.radius,
+    canvas.width - ball.radius
+  );
   ball.y = clamp(
-    paddle.y - ball.radius - 6,
+    paddle.y + paddle.height + ball.radius + 6,
     ball.radius,
     canvas.height - ball.radius
   );
@@ -567,10 +551,18 @@ function placeBallAbovePaddle() {
 }
 
 /**
- * Launch the ball straight upward with a slight horizontal variance.
+ * Launch the ball downward with a slight horizontal variance.
  */
 function launchBall() {
   if (ball.launched) return;
+  const centerX = paddle.x + paddle.width / 2;
+  const offset = ball.pendingLaunchOffset || 0;
+  ball.x = clamp(centerX + offset, ball.radius, canvas.width - ball.radius);
+  ball.y = clamp(
+    paddle.y + paddle.height + ball.radius + 6,
+    ball.radius,
+    canvas.height - ball.radius
+  );
   let horizontal = randomBetween(-0.45, 0.45) * ball.speed;
   let vertical = Math.sqrt(Math.max(ball.speed * ball.speed - horizontal * horizontal, 0));
   const minVertical = ball.speed * 0.65;
@@ -583,7 +575,8 @@ function launchBall() {
     horizontal = direction * remaining;
   }
   ball.dx = horizontal;
-  ball.dy = -vertical;
+  ball.dy = Math.abs(vertical);
+  ball.pendingLaunchOffset = 0;
   ball.launched = true;
   previousBallX = ball.x;
   previousBallY = ball.y;
@@ -599,6 +592,7 @@ function updatePaddleFromKeyboard() {
   }
   const { minX, maxX } = getPaddleBounds();
   paddle.x = clamp(paddle.x, minX, maxX);
+  resolvePaddleBrickCollisions();
 }
 
 function drawRoundedRectPath(context, x, y, width, height, radius) {
@@ -661,15 +655,11 @@ function drawBall() {
 
 function drawBricks() {
   bricks.forEach((brick) => {
-    const opacity = brick.fade;
-    if (opacity <= 0) return;
-    const offsetX = brick.offsetX ?? 0;
-    const offsetY = brick.offsetY ?? 0;
-    const x = brick.x + offsetX;
-    const y = brick.y + offsetY;
+    if (!brick.active) return;
+    const x = brick.x;
+    const y = brick.y;
     const radius = 8;
     ctx.save();
-    ctx.globalAlpha = opacity;
     drawRoundedRectPath(ctx, x, y, brick.width, brick.height, radius);
     const gradient = ctx.createLinearGradient(x, y, x + brick.width, y + brick.height);
     gradient.addColorStop(0, 'rgba(148, 163, 184, 0.45)');
@@ -720,6 +710,8 @@ function updateBoxMotion(dt) {
       box.y = bounds.maxY;
       box.velocity.y = -Math.abs(box.velocity.y || randomVelocity(TARGET_SPEED.y));
     }
+
+    resolveBoxBrickPenetration(box, bounds);
 
     applyBoxPosition(box);
   });
@@ -779,8 +771,111 @@ function resolveBoxCollisions() {
       rectB.top = boxB.y;
       rectB.right = boxB.x + (boxB.width || boxB.element.offsetWidth || 0);
       rectB.bottom = boxB.y + (boxB.height || boxB.element.offsetHeight || 0);
+
+      resolveBoxBrickPenetration(boxA, getBoxBounds(boxA));
+      resolveBoxBrickPenetration(boxB, getBoxBounds(boxB));
+
+      rectA.left = boxA.x;
+      rectA.top = boxA.y;
+      rectA.right = boxA.x + (boxA.width || boxA.element.offsetWidth || 0);
+      rectA.bottom = boxA.y + (boxA.height || boxA.element.offsetHeight || 0);
+      rectB.left = boxB.x;
+      rectB.top = boxB.y;
+      rectB.right = boxB.x + (boxB.width || boxB.element.offsetWidth || 0);
+      rectB.bottom = boxB.y + (boxB.height || boxB.element.offsetHeight || 0);
     }
   }
+}
+
+function resolveBoxBrickCollision(box, brickRect, width, height) {
+  const rect = {
+    left: box.x,
+    top: box.y,
+    right: box.x + width,
+    bottom: box.y + height
+  };
+  if (!rectanglesOverlap(rect, brickRect)) return false;
+
+  const overlapX = Math.min(rect.right, brickRect.right) - Math.max(rect.left, brickRect.left);
+  const overlapY = Math.min(rect.bottom, brickRect.bottom) - Math.max(rect.top, brickRect.top);
+  if (overlapX <= 0 || overlapY <= 0) return false;
+
+  if (overlapX < overlapY) {
+    const direction = rect.left < brickRect.left ? -1 : 1;
+    box.x += direction * overlapX;
+    box.velocity.x =
+      direction < 0
+        ? -Math.abs(box.velocity.x || randomVelocity(TARGET_SPEED.x))
+        : Math.abs(box.velocity.x || randomVelocity(TARGET_SPEED.x));
+  } else {
+    const direction = rect.top < brickRect.top ? -1 : 1;
+    box.y += direction * overlapY;
+    box.velocity.y =
+      direction < 0
+        ? -Math.abs(box.velocity.y || randomVelocity(TARGET_SPEED.y))
+        : Math.abs(box.velocity.y || randomVelocity(TARGET_SPEED.y));
+  }
+
+  return true;
+}
+
+function resolveBoxBrickPenetration(box, bounds) {
+  if (!box.element) return;
+  const width = box.width || box.element.offsetWidth || 0;
+  const height = box.height || box.element.offsetHeight || 0;
+  let resolved = false;
+
+  bricks.forEach((brick) => {
+    if (!brick.active) return;
+    const brickRect = createBrickRect(brick);
+    if (resolveBoxBrickCollision(box, brickRect, width, height)) {
+      resolved = true;
+    }
+  });
+
+  if (resolved) {
+    box.x = clamp(box.x, bounds.minX, bounds.maxX);
+    box.y = clamp(box.y, bounds.minY, bounds.maxY);
+  }
+}
+
+function resolvePaddleBrickCollisions() {
+  const paddleRect = {
+    left: paddle.x,
+    top: paddle.y,
+    right: paddle.x + paddle.width,
+    bottom: paddle.y + paddle.height
+  };
+
+  bricks.forEach((brick) => {
+    if (!brick.active) return;
+    const rect = createBrickRect(brick);
+    if (!rectanglesOverlap(paddleRect, rect)) return;
+
+    const overlapX = Math.min(paddleRect.right, rect.right) - Math.max(paddleRect.left, rect.left);
+    const overlapY = Math.min(paddleRect.bottom, rect.bottom) - Math.max(paddleRect.top, rect.top);
+    if (overlapX <= 0 || overlapY <= 0) return;
+
+    if (overlapX <= overlapY) {
+      const direction = paddleRect.left < rect.left ? -1 : 1;
+      paddle.x += direction * overlapX;
+      paddleRect.left += direction * overlapX;
+      paddleRect.right += direction * overlapX;
+    } else {
+      const direction = paddleRect.top < rect.top ? -1 : 1;
+      paddle.y += direction * overlapY;
+      paddleRect.top += direction * overlapY;
+      paddleRect.bottom += direction * overlapY;
+    }
+  });
+
+  const { minX, maxX } = getPaddleBounds();
+  paddle.x = clamp(paddle.x, minX, maxX);
+  paddle.y = clamp(paddle.y, 0, Math.max(0, playfield.height - paddle.height));
+  paddleRect.left = paddle.x;
+  paddleRect.right = paddle.x + paddle.width;
+  paddleRect.top = paddle.y;
+  paddleRect.bottom = paddle.y + paddle.height;
 }
 
 function animateTargets(dt) {
@@ -810,10 +905,6 @@ function triggerTargetHit(box) {
     box.highlightTimeout = null;
   }, 260);
 
-  if (!areBricksCleared()) {
-    return false;
-  }
-
   if (box.lives > 0) {
     box.lives -= 1;
     updateBoxLives(box);
@@ -840,7 +931,7 @@ function triggerTargetRedirect(box) {
       if (box.element) {
         box.element.classList.remove('target-link--depleted');
       }
-      placeBallAbovePaddle();
+      parkBallBelowPaddle();
     } else {
       window.location.href = box.url;
       resetBoxLives(box);
@@ -1072,51 +1163,59 @@ function handleTargetCollisions(metrics) {
 }
 
 /**
- * Bounce the ball off active bricks and start their fade-out removal.
+ * Bounce the ball off active bricks so obstacles remain solid.
  */
-function handleBrickCollisions() {
-  bricks.forEach((brick) => {
-    if (!brick.active || !brick.collidable) return;
-    const rect = createBrickRect(brick);
-    const overlapsX = ball.x + ball.radius > rect.left && ball.x - ball.radius < rect.right;
-    const overlapsY = ball.y + ball.radius > rect.top && ball.y - ball.radius < rect.bottom;
-    if (!overlapsX || !overlapsY) return;
+function resolveBallBrickCollision(rect) {
+  const overlapsX = ball.x + ball.radius > rect.left && ball.x - ball.radius < rect.right;
+  const overlapsY = ball.y + ball.radius > rect.top && ball.y - ball.radius < rect.bottom;
+  if (!overlapsX || !overlapsY) return false;
 
-    const centerX = (rect.left + rect.right) / 2;
-    const centerY = (rect.top + rect.bottom) / 2;
-    const halfWidth = Math.max(1, (rect.right - rect.left) / 2);
-    const halfHeight = Math.max(1, (rect.bottom - rect.top) / 2);
-    const normalizedX = (ball.x - centerX) / halfWidth;
-    const normalizedY = (ball.y - centerY) / halfHeight;
+  const centerX = (rect.left + rect.right) / 2;
+  const centerY = (rect.top + rect.bottom) / 2;
+  const halfWidth = Math.max(1, (rect.right - rect.left) / 2);
+  const halfHeight = Math.max(1, (rect.bottom - rect.top) / 2);
+  const normalizedX = (ball.x - centerX) / halfWidth;
+  const normalizedY = (ball.y - centerY) / halfHeight;
 
-    if (Math.abs(normalizedX) > Math.abs(normalizedY)) {
-      if (normalizedX > 0) {
-        ball.x = rect.right + ball.radius;
-        ball.dx = Math.abs(ball.dx || ball.speed);
-      } else {
-        ball.x = rect.left - ball.radius;
-        ball.dx = -Math.abs(ball.dx || ball.speed);
-      }
+  if (Math.abs(normalizedX) > Math.abs(normalizedY)) {
+    if (normalizedX > 0) {
+      ball.x = rect.right + ball.radius;
+      ball.dx = Math.abs(ball.dx || ball.speed);
     } else {
-      if (normalizedY > 0) {
-        ball.y = rect.bottom + ball.radius;
-        ball.dy = Math.abs(ball.dy || ball.speed);
-      } else {
-        ball.y = rect.top - ball.radius;
-        ball.dy = -Math.abs(ball.dy || ball.speed);
-      }
+      ball.x = rect.left - ball.radius;
+      ball.dx = -Math.abs(ball.dx || ball.speed);
     }
+  } else {
+    if (normalizedY > 0) {
+      ball.y = rect.bottom + ball.radius;
+      ball.dy = Math.abs(ball.dy || ball.speed);
+    } else {
+      ball.y = rect.top - ball.radius;
+      ball.dy = -Math.abs(ball.dy || ball.speed);
+    }
+  }
 
-    brick.collidable = false;
-    brick.destroying = true;
+  return true;
+}
 
+function handleBrickCollisions() {
+  let collided = false;
+  bricks.forEach((brick) => {
+    if (!brick.active) return;
+    const rect = createBrickRect(brick);
+    if (resolveBallBrickCollision(rect)) {
+      collided = true;
+    }
+  });
+
+  if (collided) {
     const speed = Math.hypot(ball.dx, ball.dy) || ball.speed;
     if (Math.abs(speed - ball.speed) > 0.01) {
       const adjust = ball.speed / speed;
       ball.dx *= adjust;
       ball.dy *= adjust;
     }
-  });
+  }
 }
 
 function update(dt) {
@@ -1129,9 +1228,10 @@ function update(dt) {
   const scale = delta / 16.67;
   if (!ball.launched) {
     const centerX = paddle.x + paddle.width / 2;
-    ball.x = clamp(centerX, ball.radius, canvas.width - ball.radius);
+    const offset = ball.pendingLaunchOffset || 0;
+    ball.x = clamp(centerX + offset, ball.radius, canvas.width - ball.radius);
     ball.y = clamp(
-      paddle.y - ball.radius - 6,
+      paddle.y + paddle.height + ball.radius + 6,
       ball.radius,
       canvas.height - ball.radius
     );
@@ -1222,6 +1322,7 @@ function updatePaddleFromPointer(clientX) {
   const x = relative * canvas.width - paddle.width / 2;
   const { minX, maxX } = getPaddleBounds();
   paddle.x = clamp(x, minX, maxX);
+  resolvePaddleBrickCollisions();
 }
 
 canvas.addEventListener('mousemove', (event) => {
@@ -1236,8 +1337,9 @@ canvas.addEventListener('touchmove', (event) => {
 
 function handleResize() {
   updatePlayfieldDimensions();
+  resolvePaddleBrickCollisions();
   if (!ball.launched) {
-    placeBallAbovePaddle();
+    parkBallBelowPaddle();
   }
 }
 
