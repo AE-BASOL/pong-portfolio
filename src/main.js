@@ -492,7 +492,6 @@ function restartGame() {
     }
     if (box.element) {
       box.element.classList.remove('target-link--hit');
-      box.element.classList.remove('target-link--shake');
       box.element.classList.remove('target-link--dodge');
       box.element.classList.remove('target-link--depleted');
       box.element.style.setProperty('--dodge-x', '0px');
@@ -755,14 +754,12 @@ function animateTargets(dt) {
 function triggerTargetHit(box) {
   if (!box.element) return false;
   box.element.classList.add('target-link--hit');
-  box.element.classList.add('target-link--shake');
   if (box.highlightTimeout) {
     clearTimeout(box.highlightTimeout);
   }
   box.highlightTimeout = setTimeout(() => {
     if (box.element) {
       box.element.classList.remove('target-link--hit');
-      box.element.classList.remove('target-link--shake');
     }
     box.highlightTimeout = null;
   }, 260);
